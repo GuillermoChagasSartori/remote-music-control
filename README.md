@@ -4,7 +4,8 @@ Control YouTube Music playing in a browser on a Windows PC — play/pause, skip,
 volume, now-playing — from a web page or a CLI on any other machine on the same
 home network.
 
-> **Status:** early development (Phase 0 — scaffold). Nothing runs yet.
+> **Status:** early development (Phase 1 — walking skeleton). The server runs
+> against an in-memory fake player; only a health check is exposed so far.
 
 ## Why
 
@@ -51,8 +52,30 @@ cd remote-music-control
 uv sync          # creates .venv and installs the locked dependencies
 ```
 
-Install steps for the Windows server, configuration, and usage will be added as
-the phases land.
+Run the server (uses the fake player by default) and talk to it from a second
+terminal:
+
+```bash
+uv run music-server
+uv run music health        # -> server ok — controller: FakeMediaController
+```
+
+Interactive API docs are served at <http://127.0.0.1:8000/docs>.
+
+## Configuration
+
+All settings are environment variables with defaults
+([twelve-factor](https://12factor.net/config) style), defined in
+`src/remote_music_control/config.py`.
+
+| Variable | Used by | Default | Meaning |
+|---|---|---|---|
+| `RMC_CONTROLLER` | server | `fake` | Which media adapter to load |
+| `RMC_HOST` | server | `127.0.0.1` | Address to listen on |
+| `RMC_PORT` | server | `8000` | Port to listen on |
+| `RMC_SERVER_URL` | CLI | `http://127.0.0.1:8000` | Where the CLI sends requests (`--url` overrides) |
+
+Install steps for the Windows server will be added as the phases land.
 
 ## License
 

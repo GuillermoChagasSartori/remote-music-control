@@ -7,9 +7,17 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Guillermo Chagas Sartori" }]
 requires-python = ">=3.12"
-# No runtime dependencies yet. Each one is added in the phase that needs it,
-# with a one-line justification in the commit that adds it.
-dependencies = []
+# Each dependency is added in the phase that needs it, with a one-line reason.
+dependencies = [
+    "fastapi>=0.141.1",  # HTTP framework: routing, validation, auto-generated API docs
+    "httpx>=0.28.1",     # HTTP client for the CLI (also used by FastAPI's test client)
+    "uvicorn>=0.52.4",   # ASGI server that actually listens on the socket and runs the app
+]
+
+# Console scripts: `uv sync` installs these as commands inside .venv.
+[project.scripts]
+music = "remote_music_control.cli:main"
+music-server = "remote_music_control.server:main"
 
 [build-system]
 # uv's own build backend: it turns src/remote_music_control into an

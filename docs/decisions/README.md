@@ -11,3 +11,4 @@ a decision is reversed, a new ADR supersedes the old one.
 | [0002](0002-smtc-via-winrt-over-media-keys.md) | SMTC via `winrt-*` packages instead of media keys or `winsdk` | Accepted |
 | [0003](0003-logon-task-instead-of-windows-service.md) | Start at logon with Task Scheduler, not as a Windows service | Accepted |
 | [0004](0004-uv-for-python-and-dependencies.md) | uv for Python version, virtualenv and lockfile | Accepted |
+| [0005](0005-async-media-controller-port.md) | The MediaController port is asynchronous | Accepted |
