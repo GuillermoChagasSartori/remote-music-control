@@ -1,0 +1,11 @@
+# Store every text file with LF line endings in the repository, whatever
+# machine it was edited on. Without this, the Windows PC and the Ubuntu PC
+# would keep rewriting each other's line endings and produce fake diffs.
+* text=auto eol=lf
+
+# Windows batch files are the one exception: cmd.exe needs CRLF endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Use the markdown-aware diff driver for docs.
+*.md diff

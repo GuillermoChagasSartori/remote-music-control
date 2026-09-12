@@ -1,0 +1,35 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# --- Virtual environment (created by `uv sync`, never committed) ---
+.venv/
+
+# --- Tool caches ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Secrets and local config ---
+# The bearer token and any machine-specific settings live here (Phase 5).
+# `.env.example` is the committed template with no real values.
+.env
+.env.*
+!.env.example
+
+# --- AI assistant instructions and settings (local only, not project code) ---
+CLAUDE.md
+CLAUDE.local.md
+remote-music-control-prompt.md
+.claude/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
