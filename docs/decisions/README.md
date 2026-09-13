@@ -12,3 +12,4 @@ a decision is reversed, a new ADR supersedes the old one.
 | [0003](0003-logon-task-instead-of-windows-service.md) | Start at logon with Task Scheduler, not as a Windows service | Accepted |
 | [0004](0004-uv-for-python-and-dependencies.md) | uv for Python version, virtualenv and lockfile | Accepted |
 | [0005](0005-async-media-controller-port.md) | The MediaController port is asynchronous | Accepted |
+| [0006](0006-http-api-shape.md) | HTTP API shape: RPC-style actions, REST-style state | Accepted |

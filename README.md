@@ -4,8 +4,9 @@ Control YouTube Music playing in a browser on a Windows PC — play/pause, skip,
 volume, now-playing — from a web page or a CLI on any other machine on the same
 home network.
 
-> **Status:** early development (Phase 1 — walking skeleton). The server runs
-> against an in-memory fake player; only a health check is exposed so far.
+> **Status:** early development (Phase 2). Play/pause, skip, volume and
+> now-playing work over HTTP and the CLI, against an in-memory fake player.
+> The real Windows adapter comes in Phase 4.
 
 ## Why
 
@@ -36,7 +37,7 @@ everything except one adapter is developed and tested on Linux. See
 
 ```
 src/remote_music_control/   application package (server, core, adapters, CLI)
-tests/                      unit and integration tests (from Phase 1)
+tests/                      unit and integration tests (Phase 6)
 docs/decisions/             Architecture Decision Records (ADRs)
 docs/walkthrough/           block-by-block explanation of the code
 ```
@@ -61,6 +62,37 @@ uv run music health        # -> server ok — controller: FakeMediaController
 ```
 
 Interactive API docs are served at <http://127.0.0.1:8000/docs>.
+
+## Usage
+
+### CLI
+
+```text
+music now              show current track and volume
+music play | pause     resume / pause
+music toggle           play if paused, pause if playing
+music next | prev      skip forward / back
+music vol [LEVEL]      show the volume, or set it (0–100)
+music up | down [STEP] change the volume by STEP points (default 5)
+music mute | unmute
+music health           check the server is reachable
+```
+
+### HTTP API
+
+| Method & path | Body / query | Response |
+|---|---|---|
+| `GET /health` | | `{"status": "ok", "controller": "..."}` |
+| `GET /api/state` | | track, volume, muted (`null`s if nothing is open) |
+| `POST /api/play` · `/pause` · `/play-pause` · `/next` · `/previous` | | `204 No Content` |
+| `GET /api/volume` | | `{"volume": 40, "muted": false}` |
+| `PUT /api/volume` | `{"level": 40}` | same as above |
+| `POST /api/volume/up` · `/api/volume/down` | `?step=5` (optional) | same as above |
+| `PUT /api/mute` | `{"muted": true}` | same as above |
+
+Commands answer `409 Conflict` when there is no media session (e.g. the browser
+is closed) and `422` for invalid input. Design rationale:
+[ADR 0006](docs/decisions/0006-http-api-shape.md).
 
 ## Configuration
 

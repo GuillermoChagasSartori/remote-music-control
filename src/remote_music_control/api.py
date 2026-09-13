@@ -5,11 +5,61 @@ adapter. The controller is handed in from outside (see server.py) — that is
 *dependency injection*: a component receives the objects it needs instead of
 creating them itself, so a test can pass in a fake and the production server
 can pass in the real thing.
+
+Endpoint shape (see docs/decisions/0006):
+- Actions are POST to a verb-like path (`POST /api/next`) — RPC-style.
+- State you can overwrite is PUT with the new value (`PUT /api/volume`) — REST-style.
+- `GET /api/state` returns everything a client displays, in one request.
 """
 
-from fastapi import FastAPI
+from typing import Annotated
 
-from .media_controller import MediaController
+from fastapi import APIRouter, FastAPI, Query, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+
+from .media_controller import (
+    MAX_VOLUME,
+    MIN_VOLUME,
+    MediaController,
+    NoMediaSessionError,
+    NowPlaying,
+    change_volume,
+)
+
+DEFAULT_VOLUME_STEP = 5
+
+
+# --- Request and response bodies ---
+#
+# These pydantic models are *DTOs* (data transfer objects): they describe the
+# exact JSON shape that crosses the network. FastAPI uses them to validate
+# incoming JSON (a level of 150 is rejected with HTTP 422 before our code runs)
+# and to generate the schema shown on the /docs page.
+
+
+class StateResponse(BaseModel):
+    # All three are None when there is no media session (e.g. browser closed).
+    now_playing: NowPlaying | None
+    volume: int | None
+    muted: bool | None
+
+
+class VolumeResponse(BaseModel):
+    volume: int
+    muted: bool
+
+
+class SetVolumeRequest(BaseModel):
+    level: int = Field(ge=MIN_VOLUME, le=MAX_VOLUME)
+
+
+class SetMutedRequest(BaseModel):
+    muted: bool
+
+
+# Reused by the volume up/down endpoints: an optional ?step=N query parameter.
+VolumeStep = Annotated[int, Query(ge=1, le=MAX_VOLUME)]
 
 
 def create_app(controller: MediaController) -> FastAPI:
@@ -26,6 +76,13 @@ def create_app(controller: MediaController) -> FastAPI:
     """
     app = FastAPI(title="Remote Music Control")
 
+    @app.exception_handler(NoMediaSessionError)
+    async def no_media_session(request: Request, error: NoMediaSessionError) -> JSONResponse:
+        # 409 Conflict: the request itself is fine, but the current state of
+        # the player (nothing open) doesn't allow it. One handler here means no
+        # endpoint needs its own try/except for this case.
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(error)})
+
     @app.get("/health")
     async def health() -> dict[str, str]:
         # A *liveness check*: answers "is the server process up and serving?"
@@ -33,4 +90,78 @@ def create_app(controller: MediaController) -> FastAPI:
         # doesn't make the server look dead.
         return {"status": "ok", "controller": type(controller).__name__}
 
+    # An APIRouter groups routes under a shared prefix. Keeping the API under
+    # /api leaves "/" free for the web page in Phase 3.
+    api = APIRouter(prefix="/api")
+
+    async def read_volume() -> VolumeResponse:
+        return VolumeResponse(volume=await controller.get_volume(), muted=await controller.is_muted())
+
+    # --- State ---
+
+    @api.get("/state")
+    async def get_state() -> StateResponse:
+        now = await controller.now_playing()
+        if now is None:
+            return StateResponse(now_playing=None, volume=None, muted=None)
+        # If the session disappears between these calls, the 409 handler
+        # answers instead — rare, and the client simply polls again.
+        return StateResponse(
+            now_playing=now,
+            volume=await controller.get_volume(),
+            muted=await controller.is_muted(),
+        )
+
+    # --- Transport actions: no response body, just 204 No Content ---
+    #
+    # They don't return the new state because on the real player the change
+    # takes effect asynchronously; clients read it from GET /api/state.
+
+    @api.post("/play", status_code=status.HTTP_204_NO_CONTENT)
+    async def play() -> None:
+        await controller.play()
+
+    @api.post("/pause", status_code=status.HTTP_204_NO_CONTENT)
+    async def pause() -> None:
+        await controller.pause()
+
+    @api.post("/play-pause", status_code=status.HTTP_204_NO_CONTENT)
+    async def toggle_play_pause() -> None:
+        await controller.toggle_play_pause()
+
+    @api.post("/next", status_code=status.HTTP_204_NO_CONTENT)
+    async def next_track() -> None:
+        await controller.next_track()
+
+    @api.post("/previous", status_code=status.HTTP_204_NO_CONTENT)
+    async def previous_track() -> None:
+        await controller.previous_track()
+
+    # --- Volume: every endpoint answers with the resulting volume ---
+
+    @api.get("/volume")
+    async def get_volume() -> VolumeResponse:
+        return await read_volume()
+
+    @api.put("/volume")
+    async def set_volume(body: SetVolumeRequest) -> VolumeResponse:
+        await controller.set_volume(body.level)
+        return await read_volume()
+
+    @api.post("/volume/up")
+    async def volume_up(step: VolumeStep = DEFAULT_VOLUME_STEP) -> VolumeResponse:
+        await change_volume(controller, +step)
+        return await read_volume()
+
+    @api.post("/volume/down")
+    async def volume_down(step: VolumeStep = DEFAULT_VOLUME_STEP) -> VolumeResponse:
+        await change_volume(controller, -step)
+        return await read_volume()
+
+    @api.put("/mute")
+    async def set_muted(body: SetMutedRequest) -> VolumeResponse:
+        await controller.set_muted(body.muted)
+        return await read_volume()
+
+    app.include_router(api)
     return app

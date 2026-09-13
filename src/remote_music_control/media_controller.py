@@ -61,6 +61,10 @@ class MediaController(ABC):
 
     Inheriting from ABC and marking methods @abstractmethod means Python refuses
     to instantiate an adapter that forgot to implement one of them.
+
+    Contract shared by all adapters: when there is nothing to control (e.g. the
+    browser is closed), every method raises NoMediaSessionError — except
+    now_playing(), which returns None.
     """
 
     # --- Transport ---
@@ -105,3 +109,17 @@ class MediaController(ABC):
         Returns None rather than raising, because "nothing is playing" is a
         normal state to display, not an error.
         """
+
+
+async def change_volume(controller: MediaController, delta: int) -> int:
+    """Move the volume by `delta` points, clamped to 0–100, and return the new level.
+
+    This lives here, not in an adapter or in the HTTP layer, because it is a
+    rule of the application built only from port methods: written once, it
+    works with every adapter. Clamping (rather than rejecting) means pressing
+    "volume up" at 98 simply lands on 100.
+    """
+    current = await controller.get_volume()
+    new_level = max(MIN_VOLUME, min(MAX_VOLUME, current + delta))
+    await controller.set_volume(new_level)
+    return new_level

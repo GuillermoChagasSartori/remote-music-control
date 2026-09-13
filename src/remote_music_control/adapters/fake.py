@@ -7,7 +7,13 @@ track, volume is remembered, and so on. That lets the server, web UI, CLI and
 tests be developed on Linux. See docs/decisions/0001.
 """
 
-from ..media_controller import MediaController, NowPlaying, PlaybackStatus, validate_volume
+from ..media_controller import (
+    MediaController,
+    NoMediaSessionError,
+    NowPlaying,
+    PlaybackStatus,
+    validate_volume,
+)
 
 # Invented tracks, so screenshots in the public README show no real artists.
 DEMO_TRACKS: tuple[tuple[str, str, str], ...] = (
@@ -24,7 +30,11 @@ class FakeMediaController(MediaController):
     # loop, and no method awaits in the middle of changing state, so two
     # requests can never interleave inside one method.
 
-    def __init__(self, tracks: tuple[tuple[str, str, str], ...] = DEMO_TRACKS) -> None:
+    def __init__(
+        self,
+        tracks: tuple[tuple[str, str, str], ...] = DEMO_TRACKS,
+        session_open: bool = True,
+    ) -> None:
         if not tracks:
             raise ValueError("FakeMediaController needs at least one track")
         self._tracks = tracks
@@ -32,45 +42,63 @@ class FakeMediaController(MediaController):
         self._status = PlaybackStatus.PAUSED
         self._volume = 50
         self._muted = False
+        # Public on purpose: set it to False to simulate the browser being
+        # closed, so the "no media session" path can be exercised on Linux.
+        self.session_open = session_open
+
+    def _require_session(self) -> None:
+        if not self.session_open:
+            raise NoMediaSessionError("no media session (the player is closed)")
 
     # --- Transport ---
 
     async def play(self) -> None:
+        self._require_session()
         self._status = PlaybackStatus.PLAYING
 
     async def pause(self) -> None:
+        self._require_session()
         self._status = PlaybackStatus.PAUSED
 
     async def toggle_play_pause(self) -> None:
+        self._require_session()
         if self._status == PlaybackStatus.PLAYING:
             self._status = PlaybackStatus.PAUSED
         else:
             self._status = PlaybackStatus.PLAYING
 
     async def next_track(self) -> None:
+        self._require_session()
         # Modulo wraps from the last track back to the first, like a looping queue.
         self._index = (self._index + 1) % len(self._tracks)
 
     async def previous_track(self) -> None:
+        self._require_session()
         self._index = (self._index - 1) % len(self._tracks)
 
     # --- Volume ---
 
     async def get_volume(self) -> int:
+        self._require_session()
         return self._volume
 
     async def set_volume(self, level: int) -> None:
+        self._require_session()
         validate_volume(level)
         self._volume = level
 
     async def is_muted(self) -> bool:
+        self._require_session()
         return self._muted
 
     async def set_muted(self, muted: bool) -> None:
+        self._require_session()
         self._muted = muted
 
     # --- State ---
 
     async def now_playing(self) -> NowPlaying | None:
+        if not self.session_open:
+            return None
         title, artist, album = self._tracks[self._index]
         return NowPlaying(title=title, artist=artist, album=album, status=self._status)
