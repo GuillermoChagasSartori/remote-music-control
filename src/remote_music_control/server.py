@@ -15,7 +15,6 @@ from pathlib import Path
 import uvicorn
 
 from .api import create_app
-from .pairing import lan_ip_address
 from .config import (
     DEFAULT_PORT,
     ConfigError,
@@ -27,6 +26,7 @@ from .config import (
     load_server_settings,
 )
 from .media_controller import MediaController
+from .pairing import lan_ip_address
 
 # A fixed name rather than __name__: run with `python -m`, __name__ would be
 # "__main__", which says nothing in the log.
@@ -43,7 +43,12 @@ def build_controller(settings: ServerSettings) -> MediaController:
 
         return FakeMediaController()
     if settings.controller == "windows":
-        from .adapters.windows import WindowsMediaController
+        try:
+            from .adapters.windows import WindowsMediaController
+        except ImportError as error:
+            # On Linux the adapter refuses to import (and its packages aren't
+            # installed): that's a settings problem, so report it as one.
+            raise ConfigError(f"RMC_CONTROLLER=windows can't be used here: {error}") from error
 
         return WindowsMediaController(player_apps=settings.player_apps)
     raise ConfigError(f"unknown controller {settings.controller!r}")
@@ -186,12 +191,14 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(settings.log_level, settings.log_file)
     try:
         run(settings)
-    except (ConfigError, ImportError) as error:
+    except ConfigError as error:
         logger.error("configuration error: %s", error)
         return 1
     except Exception:
-        # Anything unforeseen: record it, and exit with a failure code so the
-        # logon task's "restart on failure" setting starts the server again.
+        # Anything unforeseen: record it with its traceback, and exit with a
+        # failure code, as a program should when it didn't do its job. (The
+        # logon task restarts the server within a minute either way: its
+        # watchdog trigger doesn't depend on the exit code, see ADR 0011.)
         logger.exception("server stopped because of an unexpected error")
         return 1
     return 0

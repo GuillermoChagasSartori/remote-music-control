@@ -27,8 +27,8 @@ def test_build_controller_returns_the_fake():
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="checks the behaviour on non-Windows systems")
-def test_windows_adapter_refuses_to_load_elsewhere():
-    with pytest.raises(ImportError, match="only be used on Windows"):
+def test_windows_adapter_elsewhere_is_a_configuration_error():
+    with pytest.raises(server.ConfigError, match="RMC_CONTROLLER=windows can't be used here"):
         server.build_controller(settings("windows"))
 
 
