@@ -52,6 +52,11 @@ server process, and **neither restarted it**:
 - A server that hangs without exiting is not detected (the process is still
   "running"). Not observed so far; a health-checking watchdog would be the
   next step if it happens.
-- The watchdog wakes Task Scheduler once a minute; the cost is negligible.
+- Verified after signing out and in: the logon trigger started the server in
+  the new desktop session within seconds, with no console window.
+- The watchdog wakes Task Scheduler once a minute; the cost is negligible. Each
+  firing while the server runs is recorded as last result `0x800710E0`
+  ("request refused") — the expected sign that IgnoreNew prevented a second
+  copy, not an error.
 - Nothing runs until the user logs on. Unattended recovery after a reboot needs
   Windows automatic sign-in (ADR 0003), which stays the owner's choice.

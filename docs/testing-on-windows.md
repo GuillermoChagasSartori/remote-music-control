@@ -45,4 +45,4 @@ from before the command.
 | Date | Chrome | Firefox | Result | Notes |
 |---|---|---|---|---|
 | 2026-09-13 | ✓ | ✓ | Pass (1–13) | Found and fixed stale state after play/pause (ADR 0008); Firefox reports "paused" briefly during skips |
-| 2026-09-13 | ✓ | — | Pass (14) | Watchdog restarted a killed server in 44 s; no duplicate instances. Item 15 pending |
+| 2026-09-13 | ✓ | — | Pass (14–15) | Watchdog restarted a killed server in 44 s; no duplicate instances. After sign-out/sign-in the task started the server in the new session within seconds, no console window; Chrome opened afterwards was found without a restart |
