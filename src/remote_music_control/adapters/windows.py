@@ -90,6 +90,10 @@ class WindowsMediaController(MediaController):
         # For the grace period: when a session was last seen, and what it showed.
         self._last_seen_at = 0.0  # time.monotonic() value; 0 = never
         self._last_now_playing: NowPlaying | None = None
+        # Last volume and mute state read from or written to the browser. Used
+        # while the browser is paused and has released its audio session.
+        self._last_volume: int | None = None
+        self._last_muted: bool | None = None
 
     def _in_grace_period(self) -> bool:
         # monotonic() is a clock that only moves forward, unaffected by the
@@ -144,9 +148,29 @@ class WindowsMediaController(MediaController):
                 continue  # the process exited while we were looking; skip it
             if name in self._player_apps:
                 controls.append(audio_session.SimpleAudioVolume)
+        return controls
+
+    async def _remembered_while_paused(self, value: int | bool | None) -> int | bool:
+        """The last known volume or mute value, if the player is only paused.
+
+        Chrome releases its audio session about 3 minutes after pausing, while
+        its media session (the track) stays. Without an audio session there is
+        no volume to read — but Windows restores the application's previous
+        volume and mute state when playback resumes (measured), so the last
+        value we saw is still the right answer.
+        """
+        if value is not None and await self._find_session() is not None:
+            return value
+        raise NoMediaSessionError(
+            f"no audio session from {', '.join(self._player_apps)} — is the player open?"
+        )
+
+    def _require_audio_controls(self) -> list:
+        controls = self._audio_controls()
         if not controls:
             raise NoMediaSessionError(
-                f"no audio session from {', '.join(self._player_apps)} — is the player open?"
+                f"no audio session from {', '.join(self._player_apps)}: browsers release it "
+                "a few minutes after pausing — press play, then change the volume"
             )
         return controls
 
@@ -215,20 +239,30 @@ class WindowsMediaController(MediaController):
     # the SMTC gap described at the top of this file.
 
     async def get_volume(self) -> int:
+        controls = self._audio_controls()
+        if not controls:
+            return await self._remembered_while_paused(self._last_volume)
         # Windows stores volume as a float 0.0–1.0; the port uses integers 0–100.
-        return round(self._audio_controls()[0].GetMasterVolume() * 100)
+        self._last_volume = round(controls[0].GetMasterVolume() * 100)
+        return self._last_volume
 
     async def set_volume(self, level: int) -> None:
         validate_volume(level)
-        for control in self._audio_controls():
+        for control in self._require_audio_controls():
             control.SetMasterVolume(level / 100, None)  # None: no event context
+        self._last_volume = level
 
     async def is_muted(self) -> bool:
-        return bool(self._audio_controls()[0].GetMute())
+        controls = self._audio_controls()
+        if not controls:
+            return await self._remembered_while_paused(self._last_muted)
+        self._last_muted = bool(controls[0].GetMute())
+        return self._last_muted
 
     async def set_muted(self, muted: bool) -> None:
-        for control in self._audio_controls():
+        for control in self._require_audio_controls():
             control.SetMute(muted, None)
+        self._last_muted = muted
 
     # --- State -------------------------------------------------------------------
 
