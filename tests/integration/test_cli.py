@@ -168,3 +168,31 @@ def test_output_is_utf8_even_when_redirected_to_a_legacy_encoding(run, with_toke
 def test_timeouts_allow_slow_commands_but_detect_unreachable_servers_quickly():
     assert cli.REQUEST_TIMEOUT.connect == 3.0
     assert cli.REQUEST_TIMEOUT.read >= 5.0  # slowest real command measured at ~4.5 s
+
+
+# --- Library commands against the fake library ----------------------------------------------
+
+
+def test_search_command(run, with_token):
+    code, out, _ = run("search", "hexagon")
+    assert code == 0
+    assert out == " 1. Port and Adapter — Hexagon Club · 4:05  [fake0000003]\n 2. Walking Skeleton — Hexagon Club · 3:33  [fake0000004]\n"
+
+
+def test_queue_jump_and_add_commands(run, with_token):
+    code, out, _ = run("queue")
+    assert code == 0 and out.splitlines()[0].startswith("▶   1. Signal Path")
+
+    assert run("jump", "3")[0] == 0
+    assert run("queue")[1].splitlines()[2].startswith("▶   3. Port and Adapter")
+
+    code, out, _ = run("add", "fake0000007", "--next")
+    assert (code, out) == (0, "will play next\n")
+    assert "4. Read Your Writes" in run("queue")[1]
+
+
+def test_library_unavailable_is_explained(run, with_token, library):
+    library.available = False
+    code, _, err = run("queue")
+    assert code == 1
+    assert "HTTP 503" in err and "not connected" in err

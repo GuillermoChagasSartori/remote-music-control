@@ -58,10 +58,11 @@ store-dispatch approach was the one that worked with intact arguments.
   Google are fixed in one place.
 - **Security of the WebSocket endpoint:** browsers let any web page open a
   WebSocket to `127.0.0.1` (no CORS protection — *Cross-Site WebSocket
-  Hijacking*). The server accepts the extension's connection only from loopback,
-  only with `Origin: chrome-extension://<our id>`, and only after it presents the
-  token. The extension gets a fixed ID through a `key` in its manifest, so the
-  allowed origin never changes.
+  Hijacking*). The server accepts the extension's connection only from
+  loopback, with a loopback `Host` header, and with
+  `Origin: chrome-extension://<our id>`. The extension gets a fixed ID through
+  a public `key` in its manifest, so the allowed origin never changes.
+  *(Revised during implementation — see "Implementation notes".)*
 - **New dependency:** `websockets`, the WebSocket implementation uvicorn needs.
 - **Installation:** unpacked in Chrome developer mode, from the repository folder.
 
@@ -80,3 +81,29 @@ store-dispatch approach was the one that worked with intact arguments.
 - Each extension update needs one click on "reload" in `chrome://extensions`.
 - Firefox needs a separate adaptation later (background page instead of a
   service worker, and signing by Mozilla for permanent installation).
+
+## Implementation notes — 2026-09-13
+
+Decisions and findings from building the real extension, after the spike:
+
+- **No token for the extension (changed from the plan above).** The token was
+  meant as an extra check on the extension's WebSocket. Working it through, it
+  adds nothing: web pages can't forge the `Origin` header (the browser sets it),
+  other devices are stopped by the loopback check even with a forged origin, and
+  a program already running on the studio PC could read the config file that
+  holds the token anyway. Dropping it removed a pairing step for the extension.
+  Tests cover the refusals — a web page's origin, another extension, no origin,
+  another device forging the origin, a DNS-rebinding host — plus a control case
+  proving the legitimate extension is accepted.
+- **"Add to queue" goes to the end of the user's queue, before autoplay.**
+  YouTube Music's visible list is the queue followed by autoplay suggestions;
+  its own "Add to queue" inserts before the suggestions. The API keeps that
+  behaviour, and each queue item carries `is_autoplay` so the web page and CLI
+  can label the suggestions.
+- **Search "top result" cards.** The first shelf of results can be an artist
+  card (its songs omit the artist, which is the card's title) or a song card
+  (the card itself is playable). Both are handled; the first version missed the
+  top song entirely and showed songs without artists.
+- **Known transient:** right after an insert, an item can be labelled autoplay
+  for one refresh (the page's store updates a moment after its list); the next
+  refresh corrects it.

@@ -214,3 +214,11 @@ def test_generated_tokens_are_long_enough_and_different():
     tokens = {generate_token() for _ in range(20)}
     assert len(tokens) == 20
     assert all(len(token) >= MIN_TOKEN_LENGTH for token in tokens)
+
+
+def test_extension_id_has_a_default_and_is_validated(tmp_path):
+    assert load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN)).extension_id == "hgchacmedljophnblmbdmogbkafcmdol"
+    other = "abcdefghijklmnopabcdefghijklmnop"
+    assert load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_EXTENSION_ID=other)).extension_id == other
+    with pytest.raises(ConfigError, match="RMC_EXTENSION_ID"):
+        load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_EXTENSION_ID="not-an-id"))

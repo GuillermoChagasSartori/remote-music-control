@@ -248,8 +248,10 @@ function schedulePoll(delayMs) {
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     clearTimeout(pollTimer);
+    clearTimeout(queueTimer);
   } else if (player.dataset.status !== "locked") {
     schedulePoll(0);  // came back: refresh immediately
+    if (player.dataset.view === "queue") refreshQueue();
   }
 });
 
@@ -319,6 +321,179 @@ async function sendPendingVolume() {
     volumeRequestInFlight = false;
   }
 }
+
+// --- Views: player, search, queue ----------------------------------------------
+//
+// The three panels live in the same card; data-view on the card decides which
+// one CSS shows (the same state-attribute technique as data-status).
+
+const QUEUE_REFRESH_MS = 5000;
+const searchForm = document.getElementById("search-form");
+const searchInput = document.getElementById("search-input");
+const searchResults = document.getElementById("search-results");
+const queueList = document.getElementById("queue-list");
+let queueTimer = null;
+
+function showView(view) {
+  player.dataset.view = view;
+  for (const tab of document.querySelectorAll(".view-tab")) {
+    tab.setAttribute("aria-pressed", String(tab.dataset.viewTarget === view));
+  }
+  clearTimeout(queueTimer);
+  if (view === "search") searchInput.focus();
+  if (view === "queue") refreshQueue({ scrollToCurrent: true });
+}
+
+for (const tab of document.querySelectorAll(".view-tab")) {
+  tab.addEventListener("click", () => showView(tab.dataset.viewTarget));
+}
+
+// Library requests fail with 503 when the Chrome extension isn't connected.
+// That's shown inside the panel, where the user is looking, not as a banner.
+function showLibraryMessage(panel, text) {
+  const message = panel.querySelector(".library-message");
+  message.textContent = text || "";
+  message.hidden = !text;
+}
+
+function handleLibraryError(panel, error) {
+  if (error instanceof ApiError && error.status === 503) {
+    showLibraryMessage(panel, "Search and the queue need the Chrome extension on the studio PC, with YouTube Music open. " + error.message);
+  } else {
+    handleError(error);
+  }
+}
+
+// Build a song row's text with textContent only: titles come from the internet (XSS).
+function songText(song) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "song-text";
+  const title = document.createElement("span");
+  title.className = "song-title";
+  title.textContent = song.title;
+  const details = document.createElement("span");
+  details.className = "song-details";
+  details.textContent = [song.artist, song.duration].filter(Boolean).join(" · ");
+  wrapper.append(title, details);
+  return wrapper;
+}
+
+// --- Search ---
+
+searchForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const panel = searchForm.closest(".panel");
+  const query = searchInput.value.trim();
+  if (!query) return;
+  showLibraryMessage(panel, "Searching…");
+  searchResults.replaceChildren();
+  try {
+    const { results } = await api("GET", `/api/library/search?q=${encodeURIComponent(query)}`);
+    showLibraryMessage(panel, results.length ? "" : "No songs or videos found.");
+    renderSearchResults(results);
+  } catch (error) {
+    showLibraryMessage(panel, "");
+    handleLibraryError(panel, error);
+  }
+});
+
+function renderSearchResults(results) {
+  const rows = results.map((song) => {
+    const row = document.createElement("li");
+    row.append(songText(song));
+    for (const [position, label, extraClass] of [["now", "Play", "primary"], ["next", "Next", ""], ["end", "Queue", ""]]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `list-action ${extraClass}`.trim();
+      button.textContent = label;
+      button.dataset.videoId = song.video_id;
+      button.dataset.position = position;
+      button.setAttribute("aria-label", `${label}: ${song.title}`);
+      row.append(button);
+    }
+    return row;
+  });
+  searchResults.replaceChildren(...rows);
+}
+
+// *Event delegation*: one listener on the list handles every button in it,
+// including rows created later, instead of one listener per button.
+searchResults.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-video-id]");
+  if (!button) return;
+  const panel = searchResults.closest(".panel");
+  button.disabled = true;
+  try {
+    await api("POST", "/api/library/play", { video_id: button.dataset.videoId, position: button.dataset.position });
+    const done = { now: "Playing", next: "Will play next", end: "Added to the queue" }[button.dataset.position];
+    showBanner(done, "message");
+    schedulePoll(0);
+  } catch (error) {
+    handleLibraryError(panel, error);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+// --- Queue ---
+
+async function refreshQueue({ scrollToCurrent = false } = {}) {
+  clearTimeout(queueTimer);
+  const panel = queueList.closest(".panel");
+  try {
+    const queue = await api("GET", "/api/library/queue");
+    showLibraryMessage(panel, queue.items.length ? "" : "The queue is empty.");
+    renderQueue(queue);
+    if (scrollToCurrent) {
+      queueList.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "center" });
+    }
+  } catch (error) {
+    handleLibraryError(panel, error);
+  }
+  // Keep it fresh while visible (songs advance by themselves).
+  if (player.dataset.view === "queue" && !document.hidden) {
+    queueTimer = setTimeout(refreshQueue, QUEUE_REFRESH_MS);
+  }
+}
+
+function renderQueue(queue) {
+  const rows = [];
+  let autoplayHeadingAdded = false;
+  for (const item of queue.items) {
+    if (item.is_autoplay && !autoplayHeadingAdded) {
+      const heading = document.createElement("li");
+      heading.className = "list-heading";
+      heading.textContent = "Autoplay";
+      rows.push(heading);
+      autoplayHeadingAdded = true;
+    }
+    const row = document.createElement("li");
+    if (item.is_current) row.setAttribute("aria-current", "true");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "queue-item";
+    button.dataset.index = String(item.index);
+    const number = document.createElement("span");
+    number.className = "queue-number";
+    number.textContent = item.is_current ? "▶" : String(item.index + 1);
+    button.append(number, songText(item));
+    row.append(button);
+    rows.push(row);
+  }
+  queueList.replaceChildren(...rows);
+}
+
+queueList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-index]");
+  if (!button) return;
+  try {
+    await api("POST", `/api/library/queue/${button.dataset.index}/play`);
+    schedulePoll(0);
+    setTimeout(refreshQueue, 800); // give YouTube Music a moment to update
+  } catch (error) {
+    handleLibraryError(queueList.closest(".panel"), error);
+  }
+});
 
 // --- Start ------------------------------------------------------------------
 

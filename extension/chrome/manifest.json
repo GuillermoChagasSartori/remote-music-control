@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Remote Music Control",
+  "version": "1.0.0",
+  "description": "Lets the Remote Music Control server on this PC search YouTube Music and manage its queue.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwT8r1qk+hsH6cdrxL+HVNha6aDd2wQoxE6fGw6x+QrXIyCQDOemD5DpSussiQw2cYqTofxdO59u4T1kgJbrwXee+fyPY6f1mDko6blt1EVCNREy3p0j+6KZTu6HyAic6gfFsBRUuUUbM+bkS8RlphkyXJMSUKWmsCihSuBmqC91PO6y2aZmpYK2oaOMkWu7zU3IECbUF1sQoLscQf7VXGVQOExZxzEphypFpb29hVidxNDMHu6MJ3j4bEPx0An9wSWX5NegyffqdaCKS6OGLuWHq/dXkv+Zubz27MhJWlO6L8v4Vwna6VNUa+d6kniwzsUggOOZAstjXFt43GZZU1wIDAQAB",
+  "minimum_chrome_version": "116",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "tabs",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://music.youtube.com/*",
+    "http://127.0.0.1:8000/*"
+  ]
+}

@@ -47,6 +47,33 @@ def format_state(state: dict[str, Any]) -> str:
     return f"{line}\n{format_volume(state)}"
 
 
+def format_song(song: dict[str, Any]) -> str:
+    details = " · ".join(part for part in (song.get("artist"), song.get("duration")) if part)
+    return f"{song['title']} — {details}" if details else song["title"]
+
+
+def format_search_results(results: list[dict[str, Any]]) -> str:
+    if not results:
+        return "no songs or videos found"
+    # The video id is what `music add` needs; numbers are just for reading.
+    return "\n".join(f"{number:2}. {format_song(song)}  [{song['video_id']}]" for number, song in enumerate(results, 1))
+
+
+def format_queue(queue: dict[str, Any]) -> str:
+    if not queue["items"]:
+        return "the queue is empty"
+    lines = []
+    autoplay_started = False
+    for item in queue["items"]:
+        if item["is_autoplay"] and not autoplay_started:
+            lines.append("    --- autoplay ---")
+            autoplay_started = True
+        marker = "▶" if item["is_current"] else " "
+        # Numbered from 1 for people; `music jump N` uses the same numbers.
+        lines.append(f"{marker} {item['index'] + 1:3}. {format_song(item)}")
+    return "\n".join(lines)
+
+
 def format_volume(volume: dict[str, Any]) -> str:
     text = f"volume {volume['volume']}%"
     if volume["muted"]:
@@ -92,6 +119,25 @@ def run_mute(client: httpx2.Client, args: argparse.Namespace) -> None:
     print(format_volume(request(client, "PUT", "/api/mute", json={"muted": args.muted})))
 
 
+def run_search(client: httpx2.Client, args: argparse.Namespace) -> None:
+    query = " ".join(args.query)
+    print(format_search_results(request(client, "GET", "/api/library/search", params={"q": query})["results"]))
+
+
+def run_queue(client: httpx2.Client, args: argparse.Namespace) -> None:
+    print(format_queue(request(client, "GET", "/api/library/queue")))
+
+
+def run_jump(client: httpx2.Client, args: argparse.Namespace) -> None:
+    request(client, "POST", f"/api/library/queue/{args.number - 1}/play")
+    run_now(client, args)
+
+
+def run_add(client: httpx2.Client, args: argparse.Namespace) -> None:
+    request(client, "POST", "/api/library/play", json={"video_id": args.video_id, "position": args.position})
+    print({"now": "playing", "next": "will play next", "end": "added to the queue"}[args.position])
+
+
 def request(client: httpx2.Client, method: str, path: str, **kwargs: Any) -> Any:
     """Send one request; return the JSON body (or None for 204 No Content)."""
     response = client.request(method, path, **kwargs)
@@ -120,6 +166,17 @@ def volume_step(text: str) -> int:
     if step == 0:
         raise argparse.ArgumentTypeError("step must be at least 1")
     return step
+
+
+def queue_number(text: str) -> int:
+    """argparse converter for `music jump N`: queue positions start at 1."""
+    try:
+        number = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a whole number") from None
+    if number < 1:
+        raise argparse.ArgumentTypeError("queue positions start at 1")
+    return number
 
 
 def build_parser(default_url: str) -> argparse.ArgumentParser:
@@ -155,6 +212,25 @@ def build_parser(default_url: str) -> argparse.ArgumentParser:
         step = commands.add_parser(name, help=f"turn the volume {name}: music {name} 10")
         step.add_argument("step", nargs="?", type=volume_step, help="points to move (default: 5)")
         step.set_defaults(handler=run_volume_step, path=path)
+
+    # Library commands (search and the queue, through the Chrome extension).
+    search = commands.add_parser("search", help='search YouTube Music: music search aruarian dance')
+    search.add_argument("query", nargs="+", help="words to search for")
+    search.set_defaults(handler=run_search)
+
+    commands.add_parser("queue", help="show the queue").set_defaults(handler=run_queue)
+
+    jump = commands.add_parser("jump", help="play queue item N, as numbered by `music queue`")
+    jump.add_argument("number", type=queue_number, help="queue position (from 1)")
+    jump.set_defaults(handler=run_jump)
+
+    add = commands.add_parser("add", help="play a song by id (from `music search`), or queue it")
+    add.add_argument("video_id", help="the id shown in brackets by `music search`")
+    # A *mutually exclusive group*: --next and --end can't be given together.
+    where = add.add_mutually_exclusive_group()
+    where.add_argument("--next", dest="position", action="store_const", const="next", help="play right after the current song")
+    where.add_argument("--end", dest="position", action="store_const", const="end", help="add to the end of the queue")
+    add.set_defaults(handler=run_add, position="now")
 
     commands.add_parser("mute", help="mute the player").set_defaults(handler=run_mute, muted=True)
     commands.add_parser("unmute", help="unmute the player").set_defaults(

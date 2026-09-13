@@ -80,7 +80,9 @@ body {
 
 .player[data-status="locked"] .track,
 .player[data-status="locked"] .transport,
-.player[data-status="locked"] .volume {
+.player[data-status="locked"] .volume,
+.player[data-status="locked"] .views,
+.player[data-status="locked"] .panel {
   display: none;
 }
 
@@ -378,5 +380,191 @@ body.document {
 .footnote {
   margin-top: 1.5rem;
   font-size: 0.85rem;
+  color: var(--muted-text);
+}
+
+/* --- Views: player, search, queue (data-view on .player) --- */
+
+.views {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+  padding: 0.25rem;
+  border-radius: 0.8rem;
+  background: var(--control);
+}
+
+.view-tab {
+  flex: 1;
+  min-height: 2.5rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.view-tab[aria-pressed="true"] {
+  background: var(--card);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+
+.view-tab:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Show only the panel for the current view. */
+.player:not([data-view="player"]) .track,
+.player:not([data-view="player"]) .transport,
+.player:not([data-view="player"]) .volume,
+.player:not([data-view="search"]) .search-panel,
+.player:not([data-view="queue"]) .queue-panel {
+  display: none;
+}
+
+.search-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.search-form input,
+.search-form button {
+  min-height: 2.75rem;
+  border-radius: 0.6rem;
+  font: inherit;
+}
+
+.search-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 0.8rem;
+  border: 1px solid var(--control-hover);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.search-form button {
+  padding: 0 1rem;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.library-message {
+  margin: 0.5rem 0;
+  color: var(--muted-text);
+}
+
+/* Long lists scroll inside the card instead of stretching the page. */
+.song-list {
+  max-height: min(60vh, 32rem);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.song-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.25rem;
+  border-bottom: 1px solid var(--control);
+}
+
+.song-list .song-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-list .song-title,
+.song-list .song-details {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;   /* long titles end in "…" instead of wrapping */
+}
+
+.song-list .song-details {
+  font-size: 0.85rem;
+  color: var(--muted-text);
+}
+
+.list-action {
+  flex: none;
+  min-width: 2.75rem;
+  min-height: 2.25rem;
+  padding: 0 0.6rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--control);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.list-action.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.list-action:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.list-action:disabled {
+  opacity: 0.5;
+}
+
+/* Queue: the whole row is the jump button. */
+.queue-panel .queue-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue-panel li[aria-current="true"] {
+  background: var(--banner-bg);
+  border-radius: 0.5rem;
+}
+
+.queue-panel li[aria-current="true"] .song-title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.queue-panel .queue-number {
+  flex: none;
+  width: 2rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-text);
+}
+
+.queue-panel .list-heading {
+  display: block;
+  padding: 0.9rem 0.25rem 0.3rem;
+  border-bottom: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted-text);
 }

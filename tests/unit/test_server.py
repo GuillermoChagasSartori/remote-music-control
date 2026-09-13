@@ -21,6 +21,7 @@ def settings(controller: str) -> ServerSettings:
         token="t" * 40,
         log_level="INFO",
         log_file=None,
+        extension_id="hgchacmedljophnblmbdmogbkafcmdol",
     )
 
 
@@ -234,3 +235,15 @@ def test_main_reports_the_windows_adapter_on_linux_as_a_configuration_error(monk
 
     assert server.main([]) == 1
     assert "configuration error: RMC_CONTROLLER=windows can't be used here" in caplog.text
+
+
+def test_library_is_fake_with_the_fake_player():
+    library, bridge = server.build_library(settings("fake"))
+    assert type(library).__name__ == "FakeLibraryController"
+    assert bridge is None
+
+
+def test_library_goes_through_the_extension_on_windows():
+    library, bridge = server.build_library(settings("windows"))
+    assert type(library).__name__ == "ExtensionLibraryController"
+    assert bridge is not None

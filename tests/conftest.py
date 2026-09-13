@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from remote_music_control.adapters.fake import FakeMediaController
+from remote_music_control.adapters.fake_library import FakeLibraryController
 from remote_music_control.api import create_app
 
 from .support import TOKEN
@@ -40,8 +41,13 @@ def fake() -> FakeMediaController:
 
 
 @pytest.fixture
-def app(fake):
-    return create_app(fake, token=TOKEN)
+def library() -> FakeLibraryController:
+    return FakeLibraryController()
+
+
+@pytest.fixture
+def app(fake, library):
+    return create_app(fake, token=TOKEN, library=library)
 
 
 @pytest.fixture

@@ -16,9 +16,17 @@
   <!-- data-status drives which icons and styles show; app.js keeps it updated.
        "connecting" | "playing" | "paused" | "stopped" | "none" (no player open)
        | "locked" (no valid token yet) -->
-  <main id="player" class="player" data-status="connecting">
+  <!-- data-view: which panel is shown — "player", "search" or "queue". -->
+  <main id="player" class="player" data-status="connecting" data-view="player">
 
     <p id="banner" class="banner" role="alert" hidden></p>
+
+    <!-- View switcher. aria-pressed tells assistive technology which is active. -->
+    <nav class="views" aria-label="Views">
+      <button type="button" class="view-tab" data-view-target="player" aria-pressed="true">Player</button>
+      <button type="button" class="view-tab" data-view-target="search" aria-pressed="false">Search</button>
+      <button type="button" class="view-tab" data-view-target="queue" aria-pressed="false">Queue</button>
+    </nav>
 
     <!-- Shown instead of the controls when there is no token or it was rejected. -->
     <form id="token-form" class="token-form" hidden>
@@ -65,6 +73,21 @@
         </button>
         <button type="button" class="control small" data-volume-path="/api/volume/up" aria-label="Volume up">+</button>
       </div>
+    </section>
+
+    <!-- Search and queue come from YouTube Music through the Chrome extension. -->
+    <section class="panel search-panel" aria-label="Search">
+      <form id="search-form" class="search-form" role="search">
+        <input id="search-input" type="search" placeholder="Search YouTube Music" autocomplete="off" required>
+        <button type="submit">Search</button>
+      </form>
+      <p class="library-message" hidden></p>
+      <ul id="search-results" class="song-list"></ul>
+    </section>
+
+    <section class="panel queue-panel" aria-label="Queue">
+      <p class="library-message" hidden></p>
+      <ol id="queue-list" class="song-list"></ol>
     </section>
 
   </main>

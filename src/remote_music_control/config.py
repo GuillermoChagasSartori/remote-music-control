@@ -21,6 +21,7 @@ with other programs' settings.
 """
 
 import os
+import re
 import secrets
 import sys
 from collections.abc import Mapping
@@ -39,6 +40,10 @@ DEFAULT_SERVER_URL = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
 # Executable names whose media session and audio the Windows adapter controls.
 DEFAULT_PLAYER_APPS = ("chrome.exe", "firefox.exe")
 DEFAULT_LOG_LEVEL = "INFO"
+# The Chrome extension's fixed ID, derived from the public key in its manifest
+# (extension/chrome/manifest.json). The server accepts the extension's
+# WebSocket only from this origin (ADR 0013).
+DEFAULT_EXTENSION_ID = "hgchacmedljophnblmbdmogbkafcmdol"
 
 # secrets.token_urlsafe(32) produces 43 characters (32 random bytes). Anything
 # much shorter was probably typed by hand and may be guessable.
@@ -58,6 +63,7 @@ class ServerSettings:
     token: str
     log_level: str
     log_file: Path | None  # None: log to stderr (see server.log_destination)
+    extension_id: str
 
 
 @dataclass(frozen=True)
@@ -190,6 +196,11 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
 
     raw_log_file = values.get("RMC_LOG_FILE", "").strip()
 
+    # Chrome extension IDs are 32 letters from a to p.
+    extension_id = values.get("RMC_EXTENSION_ID", DEFAULT_EXTENSION_ID).strip()
+    if not re.fullmatch(r"[a-p]{32}", extension_id):
+        raise ConfigError(f"RMC_EXTENSION_ID={extension_id!r} is not a Chrome extension ID (32 letters a-p)")
+
     return ServerSettings(
         controller=controller,
         host=values.get("RMC_HOST", DEFAULT_HOST).strip(),
@@ -198,6 +209,7 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
         token=token,
         log_level=log_level,
         log_file=Path(raw_log_file) if raw_log_file else None,
+        extension_id=extension_id,
     )
 
 

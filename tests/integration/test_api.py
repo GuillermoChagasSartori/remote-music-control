@@ -40,7 +40,7 @@ def test_every_api_route_requires_the_token(app, anonymous_client):
     # Discovering routes from the app (instead of listing them here) means a
     # route added later without protection makes this test fail.
     routes = list(api_routes(app))
-    assert len(routes) == 11  # guards against the discovery silently finding nothing
+    assert len(routes) == 16  # guards against the discovery silently finding nothing
     for method, path in routes:
         response = anonymous_client.request(method, path)
         assert response.status_code == 401, f"{method} {path} is not protected"

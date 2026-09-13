@@ -28,13 +28,24 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Path as PathParam, Query, Request, WebSocket, status
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.requests import HTTPConnection
 
 from . import pairing
+from .extension_bridge import ExtensionBridge, ExtensionProtocolError
+from .library import (
+    InsertPosition,
+    LibraryController,
+    LibraryError,
+    LibraryUnavailableError,
+    Queue,
+    QueueItemNotFoundError,
+    Song,
+)
 from .media_controller import (
     MAX_VOLUME,
     MIN_VOLUME,
@@ -88,15 +99,32 @@ class SetMutedRequest(BaseModel):
     muted: bool
 
 
+class LibraryStatusResponse(BaseModel):
+    available: bool
+
+
+class SearchResponse(BaseModel):
+    results: list[Song]
+
+
+class PlaySongRequest(BaseModel):
+    # YouTube video ids are letters, digits, "-" and "_". Checking the shape
+    # rejects nonsense before it travels to the extension.
+    video_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    position: InsertPosition = InsertPosition.NOW
+
+
 # Reused by the volume up/down endpoints: an optional ?step=N query parameter.
 VolumeStep = Annotated[int, Query(ge=1, le=MAX_VOLUME)]
+SearchQuery = Annotated[str, Query(min_length=1, max_length=200)]
+QueueIndex = Annotated[int, PathParam(ge=0)]
 
 # Reads an `Authorization: Bearer <token>` header. auto_error=False lets our own
 # check produce the error, so missing and wrong tokens get the same response.
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def client_address(request: Request) -> str:
+def client_address(request: HTTPConnection) -> str:
     return request.client.host if request.client else "unknown"
 
 
@@ -105,7 +133,7 @@ LOOPBACK_ADDRESSES = {"127.0.0.1", "::1"}
 LOOPBACK_HOST_NAMES = {"127.0.0.1", "localhost", "::1"}
 
 
-def is_same_pc_request(request: Request) -> bool:
+def is_same_pc_request(request: HTTPConnection) -> bool:
     """True only for a browser on the server PC that opened a loopback address.
 
     Two checks, because each one alone can be fooled:
@@ -136,8 +164,19 @@ runs the server, at <code>http://127.0.0.1:{port}/pair</code>.</p>
 </main></body></html>"""
 
 
-def create_app(controller: MediaController, token: str) -> FastAPI:
-    """Build the FastAPI application around a given controller and token.
+def create_app(
+    controller: MediaController,
+    token: str,
+    *,
+    library: LibraryController,
+    extension_bridge: ExtensionBridge | None = None,
+    extension_id: str | None = None,
+) -> FastAPI:
+    """Build the FastAPI application around the given adapters and token.
+
+    `library` serves search and the queue. `extension_bridge` and
+    `extension_id` are set on the studio PC, where the Chrome extension
+    connects to /extension/ws; without them that endpoint doesn't exist.
 
     This is the *application factory* pattern: a function that returns a fresh
     app, instead of one global `app` object created at import time. Each call
@@ -186,6 +225,23 @@ def create_app(controller: MediaController, token: str) -> FastAPI:
         # the player (nothing open) doesn't allow it. One handler here means no
         # endpoint needs its own try/except for this case.
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(error)})
+
+    @app.exception_handler(LibraryUnavailableError)
+    async def library_unavailable(request: Request, error: LibraryUnavailableError) -> JSONResponse:
+        # 503 Service Unavailable: the feature exists but can't be used right
+        # now (extension not connected, no YouTube Music tab) — try again later.
+        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": str(error)})
+
+    @app.exception_handler(QueueItemNotFoundError)
+    async def queue_item_not_found(request: Request, error: QueueItemNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(error)})
+
+    @app.exception_handler(LibraryError)
+    async def library_failed(request: Request, error: LibraryError) -> JSONResponse:
+        # 502, like a player failure: the thing behind us (YouTube Music, via
+        # the extension) failed — for example because its page changed.
+        logger.warning("%s %s failed: %s", request.method, request.url.path, error)
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(error)})
 
     @app.exception_handler(MediaControllerError)
     async def media_controller_failed(request: Request, error: MediaControllerError) -> JSONResponse:
@@ -321,7 +377,56 @@ def create_app(controller: MediaController, token: str) -> FastAPI:
         await controller.set_muted(body.muted)
         return await read_volume()
 
+    # Library: search and the queue (ADR 0013). Also behind the token.
+
+    @api.get("/library/status")
+    async def library_status() -> LibraryStatusResponse:
+        return LibraryStatusResponse(available=await library.is_available())
+
+    @api.get("/library/search")
+    async def search(q: SearchQuery) -> SearchResponse:
+        return SearchResponse(results=await library.search(q))
+
+    @api.get("/library/queue")
+    async def get_queue() -> Queue:
+        return await library.get_queue()
+
+    @api.post("/library/queue/{index}/play", status_code=status.HTTP_204_NO_CONTENT)
+    async def jump_to(index: QueueIndex) -> None:
+        await library.jump_to(index)
+
+    @api.post("/library/play", status_code=status.HTTP_204_NO_CONTENT)
+    async def play_song(body: PlaySongRequest) -> None:
+        await library.play(body.video_id, body.position)
+
     app.include_router(api)
+
+    # --- The Chrome extension's connection (studio PC only) ---
+
+    if extension_bridge is not None:
+        extension_origin = f"chrome-extension://{extension_id}"
+
+        @app.websocket("/extension/ws")
+        async def extension_socket(websocket: WebSocket) -> None:
+            # Browsers let any web page open a WebSocket to 127.0.0.1 — the
+            # same-origin rules that protect fetch() don't apply (an attack
+            # called *Cross-Site WebSocket Hijacking*). So the connection is
+            # accepted only if it comes from this PC, names this PC in Host
+            # (blocks DNS rebinding) and carries our extension's Origin, which
+            # browsers set themselves and web pages can't forge (ADR 0013).
+            origin = websocket.headers.get("origin")
+            if not is_same_pc_request(websocket) or origin != extension_origin:
+                logger.warning(
+                    "refused extension connection from %s with origin %r", client_address(websocket), origin
+                )
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            await websocket.accept()
+            try:
+                await extension_bridge.serve(websocket)
+            except ExtensionProtocolError as error:
+                logger.warning("closed extension connection: %s", error)
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
     # --- Web page (public: static files, no secrets) ---
 

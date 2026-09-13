@@ -3,13 +3,14 @@
 [![CI](https://github.com/GuillermoChagasSartori/remote-music-control/actions/workflows/ci.yml/badge.svg)](https://github.com/GuillermoChagasSartori/remote-music-control/actions/workflows/ci.yml)
 
 Control YouTube Music playing in a browser on a Windows PC — play/pause, skip,
-volume, now-playing — from a web page or a CLI on any other device on the same
-home network.
+volume, now-playing, search, and the queue — from a web page or a CLI on any
+other device on the same home network.
 
-> **Status:** Phases 0–7 complete. Works end to end over the LAN with token
-> authentication, against YouTube Music in Chrome or Firefox on Windows; the
-> server starts at logon and restarts itself after a crash. Automated tests run
-> on Linux and Windows.
+> **Status:** Phases 0–8 complete. Playback controls work over the LAN with
+> token authentication, against YouTube Music in Chrome or Firefox on Windows;
+> search and the queue work in Chrome through a small extension. The server
+> starts at logon and restarts itself after a crash. Automated tests run on
+> Linux and Windows.
 
 <p align="center">
   <img src="docs/images/web-ui.png" alt="Web UI showing the current track, playback buttons and volume controls" width="320">
@@ -44,8 +45,11 @@ everything except one adapter is developed and tested on Linux. See
 
 ```
 src/remote_music_control/   application package
-  media_controller.py       the port: MediaController interface and data types
-  adapters/fake.py          in-memory adapter (any OS)
+  media_controller.py       the port for playback: MediaController interface and data types
+  library.py                the port for search and the queue: LibraryController
+  extension_bridge.py       the library through the Chrome extension (WebSocket, request/response)
+  adapters/fake.py          in-memory player adapter (any OS)
+  adapters/fake_library.py  in-memory library adapter (any OS)
   adapters/windows.py       real adapter: SMTC + Core Audio (Windows only)
   api.py                    HTTP API, authentication, error handling
   config.py                 environment variables and the config file
@@ -54,6 +58,7 @@ src/remote_music_control/   application package
   pairing.py                the pairing page: QR codes and network details
   web/                      the web pages: player (index.html, app.js), pairing (pair.html), style.css
 scripts/windows/            install/uninstall the start-at-logon task
+extension/chrome/           the Chrome extension for search and the queue
 tests/
   unit/                     one module at a time (fake player, config, CLI parsing, server)
   integration/              the real app over HTTP, and the CLI against it, using the fake
@@ -115,6 +120,12 @@ uv sync          # creates .venv; Windows-only packages install only on Windows
 
 3. **Open YouTube Music** in Chrome or Firefox.
 
+4. **For search and the queue (Chrome only):** in Chrome open
+   `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
+   and select the repository's `extension\chrome` folder. Playback controls work
+   without it. Details: [extension/chrome/README.md](extension/chrome/README.md),
+   [ADR 0013](docs/decisions/0013-chrome-extension-for-search-and-queue.md).
+
 To stop and remove the task:
 `powershell -ExecutionPolicy Bypass -File scripts\windows\uninstall-autostart.ps1`
 (the config file, log and firewall rule are kept).
@@ -124,6 +135,7 @@ To run the server by hand instead (for development), stop the task and run
 
 **Updating** the Windows PC to a newer version: in the repository folder run
 `git pull`, `uv sync`, then the install script again (it restarts the server).
+If the extension changed, click its reload arrow in `chrome://extensions`.
 
 **Surviving a reboot:** the task starts at logon, so after a reboot nothing
 runs until someone logs on. For a studio PC that should recover unattended,
@@ -200,7 +212,9 @@ behaviour needs a desktop session with a browser, so it is checked by hand:
 
 Open the server's address in any browser. The page refreshes itself every
 second while visible, works on phones, and follows the system light/dark
-theme. Design rationale: [ADR 0007](docs/decisions/0007-web-client-served-by-server.md).
+theme. Three views: **Player**; **Search** (each result has *Play*, *Next* and
+*Queue*); **Queue** (tap a song to jump to it; YouTube Music's autoplay
+suggestions are labelled). Design rationale: [ADR 0007](docs/decisions/0007-web-client-served-by-server.md).
 
 ### CLI
 
@@ -212,6 +226,10 @@ music next | prev      skip forward / back
 music vol [LEVEL]      show the volume, or set it (0–100)
 music up | down [STEP] change the volume by STEP points (default 5)
 music mute | unmute
+music search WORDS...  search YouTube Music (songs and videos), with video ids
+music queue            show the queue; ▶ marks the current song
+music jump N           play queue item N (numbered as in `music queue`)
+music add ID [--next | --end]   play a song by id now, next, or at the end of the queue
 music health           check the server is reachable and the token accepted
 ```
 
@@ -228,13 +246,20 @@ All `/api` routes require `Authorization: Bearer <token>`.
 | `PUT /api/volume` | `{"level": 40}` | same as above |
 | `POST /api/volume/up` · `/api/volume/down` | `?step=5` (optional) | same as above |
 | `PUT /api/mute` | `{"muted": true}` | same as above |
+| `GET /api/library/status` | | `{"available": true}` — is the extension connected? |
+| `GET /api/library/search` | `?q=words` | `{"results": [{video_id, title, artist, duration}]}` |
+| `GET /api/library/queue` | | `{"items": [{index, video_id, title, artist, duration, is_current, is_autoplay}], "current_index"}` |
+| `POST /api/library/queue/{index}/play` | | `204` — jump to that item |
+| `POST /api/library/play` | `{"video_id": "…", "position": "now" \| "next" \| "end"}` | `204` |
 
 | Status | Meaning |
 |---|---|
 | `401` | missing or wrong token |
 | `409` | no media session (e.g. the browser is closed) |
 | `422` | invalid input |
-| `502` | the player rejected the command |
+| `404` | no queue item at that index |
+| `502` | the player rejected the command, or YouTube Music (via the extension) failed |
+| `503` | search/queue unavailable: the Chrome extension isn't connected or no YouTube Music tab is open |
 | `500` | unexpected server error (details only in the server log) |
 
 Transport commands reply once their effect is visible — up to ~2 s for a skip
@@ -260,6 +285,7 @@ Settings come from environment variables, then the config file, then defaults
 | `RMC_LOG_LEVEL` | server | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
 | `RMC_LOG_FILE` | server | stderr, or `server.log` next to the config file without a console | Write the log to this file (rotated at 1 MB) |
 | `RMC_SERVER_URL` | CLI | `http://127.0.0.1:8000` | Where the CLI sends requests (`--url` overrides) |
+| `RMC_EXTENSION_ID` | server | `hgchacmedljophnblmbdmogbkafcmdol` | The Chrome extension allowed to connect (fixed by its manifest key) |
 | `RMC_CONFIG_FILE` | both | see above | Use a different config file |
 
 ## Security

@@ -15,6 +15,7 @@ from pathlib import Path
 
 import uvicorn
 
+from .adapters.fake_library import FakeLibraryController
 from .api import create_app
 from .config import (
     DEFAULT_PORT,
@@ -26,6 +27,8 @@ from .config import (
     generate_token,
     load_server_settings,
 )
+from .extension_bridge import ExtensionBridge, ExtensionLibraryController
+from .library import LibraryController
 from .media_controller import MediaController
 from .pairing import lan_ip_address
 
@@ -53,6 +56,19 @@ def build_controller(settings: ServerSettings) -> MediaController:
 
         return WindowsMediaController(player_apps=settings.player_apps)
     raise ConfigError(f"unknown controller {settings.controller!r}")
+
+
+def build_library(settings: ServerSettings) -> tuple[LibraryController, ExtensionBridge | None]:
+    """Search and the queue: through the Chrome extension on the studio PC, a fake elsewhere.
+
+    Tied to the media controller choice: the extension only makes sense where
+    the real browser is (ADR 0013). Returns the bridge too, so the API can
+    offer the extension its WebSocket endpoint.
+    """
+    if settings.controller == "windows":
+        bridge = ExtensionBridge()
+        return ExtensionLibraryController(bridge), bridge
+    return FakeLibraryController(), None
 
 
 LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -168,7 +184,14 @@ def report_startup_error(message: str) -> None:
 
 def run(settings: ServerSettings) -> None:
     controller = build_controller(settings)
-    app = create_app(controller, token=settings.token)
+    library, extension_bridge = build_library(settings)
+    app = create_app(
+        controller,
+        token=settings.token,
+        library=library,
+        extension_bridge=extension_bridge,
+        extension_id=settings.extension_id,
+    )
     logger.info(
         "starting with %s on %s:%d", type(controller).__name__, settings.host, settings.port
     )

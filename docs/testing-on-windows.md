@@ -44,12 +44,21 @@ from before the command.
 | 18 | Open `http://<PC IP>:8000/pair` from another device | "Only available on the server PC" (403), no QR codes |
 | 19 | Pause, wait 4 minutes, then `music now` and `music vol 40` | `now` shows the paused track and last volume; `vol 40` says to press play first |
 | 20 | Follow the log with `Get-Content ... -Wait` while using the remote | Commands keep appearing; no errors in the log |
+| 21 | Load `extension\chrome` unpacked in Chrome; check the server log | `Chrome extension connected (version …)`; card shows ID `hgchacmedljophnblmbdmogbkafcmdol` |
+| 22 | `music search` for an artist and for a song title | Songs show artists; the top result song is first |
+| 23 | `music add <id> --next`, then `music queue` | Song right after the current one; playback not interrupted |
+| 24 | `music add <id> --end` | Song at the end of your queue, above "autoplay" |
+| 25 | `music jump N` | That song plays; `music now` agrees |
+| 26 | `music add <id>` (now) | Plays at once; queue replaced by a radio |
+| 27 | Close the YouTube Music tab, then `music queue` | HTTP 503 explaining no YouTube Music tab |
+| 28 | Web page on the phone: Search → Next, then Queue | Same results as the CLI; tapping a queue item jumps |
 
 ## Results log
 
 | Date | Chrome | Firefox | Result | Notes |
 |---|---|---|---|---|
 | 2026-09-13 | ✓ | ✓ | Pass (1–13) | Found and fixed stale state after play/pause (ADR 0008); Firefox reports "paused" briefly during skips |
+| 2026-09-13 | ✓ | — | Pass (21–26) | Extension connected; search parsing fixed for top-result cards; next/end/jump/now verified, also while an autoplay song was playing |
 | 2026-09-13 | ✓ | — | Pass (19–20) | Found and fixed: state failed after 3 min paused (ADR 0008 addendum); log rotation lost 286/400 lines and 2 backups while the log was followed (lock-tolerant handler). Both verified after the fix |
 | 2026-09-13 | ✓ | — | Pass (16–18) | Pairing page: desktop shortcut opens it, phone scan of "Any phone" code opens the player, other devices get 403 |
 | 2026-09-13 | ✓ | — | Pass (14–15) | Watchdog restarted a killed server in 44 s; no duplicate instances. After sign-out/sign-in the task started the server in the new session within seconds, no console window; Chrome opened afterwards was found without a restart |
