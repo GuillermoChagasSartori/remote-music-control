@@ -13,7 +13,8 @@ Endpoint shape (see docs/decisions/0006):
 
 Security (see docs/decisions/0009): every /api route requires the shared bearer
 token. `/health` and the web page's static files are public — they contain no
-secrets and do nothing.
+secrets and do nothing. `/pair` shows the token, so it is served only to the
+server PC itself (see docs/decisions/0012).
 
 The web page (HTML, CSS, JS in the `web/` folder) is served by this same app,
 so there is nothing to install on the client: open the server's address in a
@@ -25,13 +26,15 @@ import secrets
 import time
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import pairing
 from .media_controller import (
     MAX_VOLUME,
     MIN_VOLUME,
@@ -95,6 +98,41 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def client_address(request: Request) -> str:
     return request.client.host if request.client else "unknown"
+
+
+# Loopback: the addresses and names a computer uses to talk to itself.
+LOOPBACK_ADDRESSES = {"127.0.0.1", "::1"}
+LOOPBACK_HOST_NAMES = {"127.0.0.1", "localhost", "::1"}
+
+
+def is_same_pc_request(request: Request) -> bool:
+    """True only for a browser on the server PC that opened a loopback address.
+
+    Two checks, because each one alone can be fooled:
+
+    1. The connection comes from a loopback address, so it didn't come over
+       the network from another device.
+    2. The Host header (the address typed in the browser) is a loopback name.
+       This blocks *DNS rebinding*: a malicious web page opened on this PC
+       makes its own domain name resolve to 127.0.0.1, so the browser treats
+       the page and our server as the same site and lets the page read the
+       response. The request then still carries the attacker's domain in the
+       Host header, which fails this check.
+    """
+    connection_is_local = request.client is not None and request.client.host in LOOPBACK_ADDRESSES
+    # urlsplit understands "localhost:8000" and "[::1]:8000" alike.
+    host_name = urlsplit("//" + request.headers.get("host", "")).hostname
+    return connection_is_local and host_name in LOOPBACK_HOST_NAMES
+
+
+PAIRING_REFUSED_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Not available</title>
+<link rel="stylesheet" href="/static/style.css"></head>
+<body class="document"><main class="pairing">
+<h1>Only available on the server PC</h1>
+<p>The pairing page contains the access token, so it opens only on the PC that
+runs the server, at <code>http://127.0.0.1:8000/pair</code>.</p>
+</main></body></html>"""
 
 
 def create_app(controller: MediaController, token: str) -> FastAPI:
@@ -287,6 +325,21 @@ def create_app(controller: MediaController, token: str) -> FastAPI:
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(WEB_DIR / "index.html")
+
+    # --- Pairing page (server PC only: it contains the token) ---
+
+    @app.get("/pair", include_in_schema=False)
+    async def pairing_page(request: Request) -> HTMLResponse:
+        if not is_same_pc_request(request):
+            logger.warning("refused the pairing page to %s: only served to the server PC", client_address(request))
+            return HTMLResponse(PAIRING_REFUSED_PAGE, status_code=status.HTTP_403_FORBIDDEN)
+        page = pairing.render_pairing_page(
+            token=token,
+            port=request.url.port or 80,  # the port the browser used, i.e. the one we listen on
+            network=pairing.current_network(),
+        )
+        # no-store: a page containing the token must not be kept in the browser cache.
+        return HTMLResponse(page, headers={"Cache-Control": "no-store"})
 
     # Everything else in web/ (CSS, JS) is served under /static/<filename>.
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

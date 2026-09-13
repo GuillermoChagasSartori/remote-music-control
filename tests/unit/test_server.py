@@ -1,6 +1,5 @@
 """Unit tests for the server entry point: adapter selection, `init`, startup errors."""
 
-import socket
 import sys
 from pathlib import Path
 
@@ -42,6 +41,7 @@ def test_init_creates_a_config_file_with_a_token(isolated_environment, capsys):
     printed = capsys.readouterr().out
     assert len(token) >= 32
     assert f"#token={token}" in printed
+    assert "/pair" in printed
 
 
 def test_init_never_replaces_an_existing_config_file(isolated_environment, capsys):
@@ -56,14 +56,6 @@ def test_init_never_replaces_an_existing_config_file(isolated_environment, capsy
 def test_server_without_a_token_exits_with_a_one_line_message(capsys):
     assert server.main([]) == 1
     assert "configuration error: no RMC_TOKEN" in capsys.readouterr().err
-
-
-def test_lan_ip_address_is_none_without_a_network(monkeypatch):
-    def unreachable(self, address):
-        raise OSError("network is unreachable")
-
-    monkeypatch.setattr(socket.socket, "connect", unreachable)
-    assert server.lan_ip_address() is None
 
 
 def test_run_wires_settings_into_the_app_and_uvicorn(monkeypatch):

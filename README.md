@@ -51,7 +51,8 @@ src/remote_music_control/   application package
   config.py                 environment variables and the config file
   server.py                 `music-server`: wiring, logging, `init`
   cli.py                    `music` command-line client
-  web/                      the web page: index.html, style.css, app.js
+  pairing.py                the pairing page: QR codes and network details
+  web/                      the web pages: player (index.html, app.js), pairing (pair.html), style.css
 scripts/windows/            install/uninstall the start-at-logon task
 tests/
   unit/                     one module at a time (fake player, config, CLI parsing, server)
@@ -134,18 +135,21 @@ deliberate trade-off.
 
 ### On a client
 
-- **Browser or phone:** open one of the pairing links printed by `init`. The
-  page stores the token and removes it from the address bar; without a link,
-  the page asks for the token.
-  - `http://desktop-name.local:8000/#token=…` — works on desktops and iPhones,
-    and keeps working if the PC's IP changes.
-  - `http://192.168.1.16:8000/#token=…` — needed on **Android**, whose browsers
-    can't resolve `.local` names. Reserve the PC's IP in the router (DHCP
-    reservation) so the address doesn't change.
+- **Phone or browser — easiest:** on the Windows PC, double-click the desktop
+  shortcut **"Remote Music Control - pair a device"** (or open
+  `http://127.0.0.1:8000/pair` there) and scan a QR code with the phone. The
+  page opens the remote and stores the token on the device.
+  - The **"Any phone"** code uses the PC's IP address. It's needed on
+    **Android**, whose browsers can't resolve `.local` names.
+  - The **"iPhone or computer"** code uses the PC's name and keeps working if
+    the IP changes.
+  - If the PC's IP changes, phones paired by IP stop connecting: scan again.
+    The same page explains how to prevent that with a DHCP reservation on the
+    router, filled in with this PC's details.
 
-  Tip: to move a link to a phone without sending the token through a chat
-  app, show it as a QR code in a terminal, e.g.
-  `qrencode -t ansiutf8 "<link>"` on Linux.
+  The pairing page opens only on the Windows PC itself, because it contains
+  the token ([ADR 0012](docs/decisions/0012-pairing-page-on-the-server-pc.md)).
+  `music-server init` also prints the same links as text.
 - **CLI:** create `~/.config/remote-music-control/config.env` (Linux) readable
   only by you (`chmod 600`):
 

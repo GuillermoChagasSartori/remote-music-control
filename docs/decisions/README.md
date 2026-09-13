@@ -18,3 +18,4 @@ a decision is reversed, a new ADR supersedes the old one.
 | [0009](0009-bearer-token-on-the-lan.md) | Shared bearer token for LAN access | Accepted |
 | [0010](0010-httpx2-for-the-cli-and-tests.md) | httpx2 instead of httpx for the CLI and tests | Accepted |
 | [0011](0011-logon-task-with-watchdog-trigger.md) | Logon task with a clock-based watchdog trigger | Accepted |
+| [0012](0012-pairing-page-on-the-server-pc.md) | Pairing page served only to the server PC | Accepted |

@@ -15,6 +15,7 @@ from pathlib import Path
 import uvicorn
 
 from .api import create_app
+from .pairing import lan_ip_address
 from .config import (
     DEFAULT_PORT,
     ConfigError,
@@ -122,23 +123,6 @@ def run(settings: ServerSettings) -> None:
     )
 
 
-def lan_ip_address() -> str | None:
-    """Best guess at this PC's address on the local network, or None.
-
-    "Connecting" a UDP socket sends no packets; it only makes the operating
-    system pick the network interface it would use to reach that address, and
-    getsockname() then reports that interface's IP. The target is a reserved
-    documentation address (TEST-NET-1), so nothing real is ever involved.
-    """
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-            probe.connect(("192.0.2.1", 9))
-            address = probe.getsockname()[0]
-    except OSError:
-        return None
-    return None if address.startswith("127.") else address
-
-
 def init() -> int:
     """Create the config file with a fresh token (never overwrites an existing one)."""
     path = default_config_path()
@@ -177,6 +161,9 @@ def init() -> int:
     ip_address = lan_ip_address()
     if ip_address:
         print(f"  by IP (Android, anything):  http://{ip_address}:{DEFAULT_PORT}/#token={token}")
+    print()
+    print(f"Later, while the server runs, open http://127.0.0.1:{DEFAULT_PORT}/pair on this PC")
+    print("to show these links as QR codes.")
     return 0
 
 

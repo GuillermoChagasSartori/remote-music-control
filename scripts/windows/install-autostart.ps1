@@ -12,6 +12,9 @@
         killed process), for as long as the user is logged on.
     See docs/decisions/0003-logon-task-instead-of-windows-service.md.
 
+    It also puts a "pair a device" shortcut on the desktop, which opens the
+    page with QR codes for connecting a phone.
+
     Safe to run again: it replaces the task with the current settings.
     Run as administrator, it also creates the LAN-only firewall rule.
 
@@ -123,6 +126,15 @@ if (Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyCont
     Write-Warning "No firewall rule for port $Port. Run this script once as administrator so other devices can connect."
 }
 
+# --- Desktop shortcut to the pairing page ---------------------------------------------------
+
+# A .url file is Windows' "Internet shortcut": double-clicking it opens the
+# address in the default browser. The pairing page only opens on this PC.
+$Desktop = [Environment]::GetFolderPath("Desktop")
+$ShortcutPath = Join-Path $Desktop "Remote Music Control - pair a device.url"
+Set-Content -Path $ShortcutPath -Encoding ASCII -Value @("[InternetShortcut]", "URL=http://127.0.0.1:$Port/pair")
+Write-Host "Desktop shortcut: $ShortcutPath"
+
 # --- Start it now and check it answers ----------------------------------------------------------
 
 Start-ScheduledTask -TaskName $TaskName
@@ -144,4 +156,5 @@ if ($Healthy) {
     Write-Warning "The server did not answer within 10 seconds. Check the log: $LogFile"
 }
 Write-Host "Log file: $LogFile"
+Write-Host "To connect a phone: open the desktop shortcut, or http://127.0.0.1:$Port/pair, and scan a QR code."
 Write-Host "To remove: powershell -ExecutionPolicy Bypass -File scripts\windows\uninstall-autostart.ps1"

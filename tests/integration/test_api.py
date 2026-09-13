@@ -231,3 +231,81 @@ def test_commands_are_logged_but_polling_is_not(client, caplog):
     app_log = "\n".join(r.getMessage() for r in caplog.records if r.name == "remote_music_control.api")
     assert "POST /api/next -> 204" in app_log
     assert "/api/state" not in app_log
+
+
+# --- Pairing page ------------------------------------------------------------------------
+
+
+@pytest.fixture
+def pairing_network(monkeypatch):
+    """Fixed network details, so the page doesn't depend on the test machine."""
+    from remote_music_control import pairing
+
+    details = pairing.NetworkDetails(hostname="studio-pc", ip_address="192.168.1.16", mac_address="AA:BB:CC:DD:EE:FF")
+    monkeypatch.setattr(pairing, "current_network", lambda: details)
+    return details
+
+
+def browser(app, client_ip, url):
+    """A client whose connection comes from `client_ip`, opening `url`."""
+    from fastapi.testclient import TestClient
+
+    return TestClient(app, base_url=url, client=(client_ip, 50000), raise_server_exceptions=False)
+
+
+@pytest.mark.parametrize(
+    ("client_ip", "url"),
+    # IPv6 ([::1]) is covered in test_same_pc_check_handles_ipv6: the test client can't parse IPv6 URLs.
+    [("127.0.0.1", "http://127.0.0.1:8000"), ("127.0.0.1", "http://localhost:8000")],
+)
+def test_pairing_page_opens_on_the_server_pc(app, pairing_network, client_ip, url):
+    response = browser(app, client_ip, url).get("/pair")
+    assert response.status_code == 200
+    assert "Pair a phone or computer" in response.text
+    assert "AA:BB:CC:DD:EE:FF" in response.text
+    assert response.text.count("<svg") == 2  # the two QR codes
+    assert response.headers["Cache-Control"] == "no-store"  # never cached: it holds the token
+    assert "default-src 'self'" in response.headers["Content-Security-Policy"]
+
+
+def test_pairing_page_is_refused_to_other_devices(app, pairing_network, caplog):
+    caplog.set_level(logging.WARNING)
+    response = browser(app, "192.168.1.12", "http://192.168.1.16:8000").get("/pair")
+    assert response.status_code == 403
+    assert "<svg" not in response.text
+    assert TOKEN not in response.text
+    assert "refused the pairing page to 192.168.1.12" in caplog.text
+
+
+def test_pairing_page_is_refused_to_dns_rebinding(app, pairing_network):
+    # Connection from this PC, but the browser was on the attacker's domain,
+    # which had been made to resolve to 127.0.0.1.
+    response = browser(app, "127.0.0.1", "http://evil.example:8000").get("/pair")
+    assert response.status_code == 403
+
+
+def test_pairing_qr_code_contains_the_token_and_the_port_in_use(app, pairing_network, monkeypatch):
+    from remote_music_control import pairing
+
+    encoded = []
+    monkeypatch.setattr(pairing, "qr_code_svg", lambda text: encoded.append(text) or "<svg></svg>")
+    browser(app, "127.0.0.1", "http://127.0.0.1:9000").get("/pair")
+    assert encoded[0] == f"http://192.168.1.16:9000/#token={TOKEN}"
+
+
+@pytest.mark.parametrize(
+    ("client_ip", "host_header", "expected"),
+    [
+        ("::1", "[::1]:8000", True),
+        ("::1", "localhost:8000", True),
+        ("::1", "evil.example:8000", False),
+        ("192.168.1.12", "[::1]:8000", False),
+    ],
+)
+def test_same_pc_check_handles_ipv6(client_ip, host_header, expected):
+    from types import SimpleNamespace
+
+    from remote_music_control.api import is_same_pc_request
+
+    request = SimpleNamespace(client=SimpleNamespace(host=client_ip), headers={"host": host_header})
+    assert is_same_pc_request(request) is expected

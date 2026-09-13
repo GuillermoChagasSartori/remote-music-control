@@ -12,7 +12,10 @@ dependencies = [
     "fastapi>=0.141.1",  # HTTP framework: routing, validation, auto-generated API docs
     "httpx2>=2.12.0",    # HTTP client for the CLI; same library as FastAPI's test client (docs/decisions/0010)
     "uvicorn>=0.52.4",   # ASGI server that actually listens on the socket and runs the app
-
+    "segno>=1.6.6",      # QR codes for the pairing page, as SVG; pure Python, no dependencies
+    # Network card MAC address for the pairing page (all systems); on Windows also names
+    # the process behind each audio session.
+    "psutil>=7.2.2",
     # --- Windows only: the `; sys_platform == 'win32'` marker makes Linux skip them ---
     # SMTC (play/pause/skip, now-playing) through pywinrt; see docs/decisions/0002.
     # pywinrt ships one package per WinRT namespace, so each namespace we touch is listed.
@@ -22,8 +25,6 @@ dependencies = [
     "winrt-windows-foundation-collections>=3.2.1 ; sys_platform == 'win32'",  # the list of sessions
     # Per-application volume through the Windows Core Audio API (SMTC has no volume control).
     "pycaw>=20251023 ; sys_platform == 'win32'",
-    # Names the process behind each audio session; imported directly to handle a process exiting mid-lookup.
-    "psutil>=7.2.2 ; sys_platform == 'win32'",
 ]
 
 # Console scripts: `uv sync` installs these as commands inside .venv.

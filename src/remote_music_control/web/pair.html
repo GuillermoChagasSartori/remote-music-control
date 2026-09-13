@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Pair a device — Remote Music Control</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<!-- Filled in by pairing.py: $$name placeholders are replaced before sending. -->
+<body class="document">
+  <main class="pairing">
+
+    <h1>Pair a phone or computer</h1>
+    <p class="lead">
+      On the device you want to use as a remote, connect to the same Wi-Fi as
+      this PC, then point its camera at a code below and open the link.
+      The music controls open and the device remembers the access.
+    </p>
+
+    <div class="qr-codes">
+      <section class="qr-card">
+        <h2>Any phone</h2>
+        <div class="qr">$ip_qr</div>
+        <p class="qr-caption">Uses this PC's address, <strong>$ip_address</strong>.
+          Works on Android and iPhone.</p>
+      </section>
+
+      <section class="qr-card">
+        <h2>iPhone or computer</h2>
+        <div class="qr">$name_qr</div>
+        <p class="qr-caption">Uses this PC's name, <strong>$name_address</strong>.
+          Keeps working if the address changes. Android browsers can't open it.</p>
+      </section>
+    </div>
+
+    <p class="warning">
+      These codes contain the access token: anyone who scans them can control
+      the music. Don't share photos of this screen.
+    </p>
+
+    <details class="dhcp">
+      <summary>Stop this PC's address from changing (optional)</summary>
+
+      <p>
+        Your router gives this PC its address, and it may give a different one
+        some day — for example after a power cut. A phone paired with the old
+        address then stops connecting. A <strong>DHCP reservation</strong> tells
+        the router to always give this PC the same address. You set it once;
+        nothing else changes for anyone.
+      </p>
+
+      <table>
+        <tr><th>Device name</th><td>$hostname</td></tr>
+        <tr><th>MAC address</th><td><code>$mac_address</code></td></tr>
+        <tr><th>Address to reserve</th><td><code>$ip_address</code></td></tr>
+      </table>
+
+      <ol>
+        <li>On this PC, open the router's settings page — usually
+          <code>$router_address</code>. The admin password is often printed on
+          a sticker on the router.</li>
+        <li>Find the DHCP settings. Routers name them differently:
+          <em>DHCP</em>, <em>LAN</em>, <em>Reserva de endereço</em>,
+          <em>Reserva DHCP</em>, <em>IP fixo</em>, <em>Address Reservation</em>
+          or <em>Static lease</em>. Many routers also list connected devices
+          with a button to reserve their address.</li>
+        <li>Add a reservation with the MAC address and the address above, and save.</li>
+      </ol>
+
+      <p>
+        If your router doesn't offer this, or you don't have its password, skip
+        it: whenever the address changes, come back to this page and scan again.
+      </p>
+    </details>
+
+    <p class="footnote">
+      For security, this page only opens on this PC, at
+      <code>http://127.0.0.1:$port/pair</code>.
+    </p>
+
+  </main>
+</body>
+</html>

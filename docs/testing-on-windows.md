@@ -39,6 +39,9 @@ from before the command.
 | 13 | Check `%APPDATA%\remote-music-control\server.log` | Commands logged with client IP; no tracebacks |
 | 14 | End the `pythonw.exe` server processes in Task Manager | `music now` fails, then works again within ~1 minute |
 | 15 | Sign out and sign in again (or reboot and sign in) | Server answers shortly after logon, with no window on the desktop |
+| 16 | Double-click the desktop shortcut "pair a device" | Pairing page with two QR codes, this PC's MAC and IP |
+| 17 | Scan the "Any phone" code with a phone on the Wi-Fi | Player opens on the phone, buttons work |
+| 18 | Open `http://<PC IP>:8000/pair` from another device | "Only available on the server PC" (403), no QR codes |
 
 ## Results log
 

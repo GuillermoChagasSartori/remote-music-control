@@ -288,3 +288,95 @@ input[type="range"]:focus-visible {
 #mute[aria-pressed="true"] {
   color: var(--accent);
 }
+
+/* --- Pairing page (pair.html) --- */
+
+/* A long, scrolling document: the centred flex layout used by the player would
+   cut off the top of a page taller than the screen. */
+body.document {
+  display: block;
+}
+
+.pairing {
+  max-width: 46rem;
+  margin: 1rem auto;
+  padding: 2rem 1.75rem;
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.08);
+  line-height: 1.5;
+}
+
+.pairing h1 {
+  margin-top: 0;
+}
+
+.pairing .lead {
+  color: var(--muted-text);
+}
+
+.qr-codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.qr-card {
+  flex: 1 1 18rem;
+  padding: 1rem;
+  border-radius: 0.9rem;
+  background: var(--control);
+  text-align: center;
+}
+
+.qr-card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.qr svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.4rem;
+}
+
+.qr-caption {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.warning {
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.6rem;
+  background: var(--banner-bg);
+  color: var(--banner-text);
+}
+
+.dhcp {
+  margin-top: 1.5rem;
+}
+
+.dhcp summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dhcp table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.dhcp th,
+.dhcp td {
+  padding: 0.3rem 1rem 0.3rem 0;
+  text-align: left;
+}
+
+.footnote {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--muted-text);
+}

@@ -22,6 +22,12 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Write-Host "Task '$TaskName' is not installed."
 }
 
+$ShortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "Remote Music Control - pair a device.url"
+if (Test-Path $ShortcutPath) {
+    Remove-Item $ShortcutPath
+    Write-Host "Removed the desktop shortcut."
+}
+
 # Make sure no server process is left running.
 Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" |
     Where-Object { $_.CommandLine -like '*remote_music_control.server*' } |
