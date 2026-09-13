@@ -125,13 +125,14 @@ def is_same_pc_request(request: Request) -> bool:
     return connection_is_local and host_name in LOOPBACK_HOST_NAMES
 
 
+# {port} is filled in with str.format(); the HTML itself contains no other braces.
 PAIRING_REFUSED_PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Not available</title>
 <link rel="stylesheet" href="/static/style.css"></head>
 <body class="document"><main class="pairing">
 <h1>Only available on the server PC</h1>
 <p>The pairing page contains the access token, so it opens only on the PC that
-runs the server, at <code>http://127.0.0.1:8000/pair</code>.</p>
+runs the server, at <code>http://127.0.0.1:{port}/pair</code>.</p>
 </main></body></html>"""
 
 
@@ -330,14 +331,11 @@ def create_app(controller: MediaController, token: str) -> FastAPI:
 
     @app.get("/pair", include_in_schema=False)
     async def pairing_page(request: Request) -> HTMLResponse:
+        port = request.url.port or 80  # the port the browser used, i.e. the one we listen on
         if not is_same_pc_request(request):
             logger.warning("refused the pairing page to %s: only served to the server PC", client_address(request))
-            return HTMLResponse(PAIRING_REFUSED_PAGE, status_code=status.HTTP_403_FORBIDDEN)
-        page = pairing.render_pairing_page(
-            token=token,
-            port=request.url.port or 80,  # the port the browser used, i.e. the one we listen on
-            network=pairing.current_network(),
-        )
+            return HTMLResponse(PAIRING_REFUSED_PAGE.format(port=port), status_code=status.HTTP_403_FORBIDDEN)
+        page = pairing.render_pairing_page(token=token, port=port, network=pairing.current_network())
         # no-store: a page containing the token must not be kept in the browser cache.
         return HTMLResponse(page, headers={"Cache-Control": "no-store"})
 

@@ -275,6 +275,7 @@ def test_pairing_page_is_refused_to_other_devices(app, pairing_network, caplog):
     assert "<svg" not in response.text
     assert TOKEN not in response.text
     assert "refused the pairing page to 192.168.1.12" in caplog.text
+    assert "http://127.0.0.1:8000/pair" in response.text  # tells the user where it does open
 
 
 def test_pairing_page_is_refused_to_dns_rebinding(app, pairing_network):
