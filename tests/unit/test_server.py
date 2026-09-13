@@ -200,3 +200,39 @@ def test_rotation_resumes_once_the_lock_is_released(tmp_path, monkeypatch):
     # line is in the current file. (Older lines age out, as rotation intends.)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["server.log", "server.log.1", "server.log.2", "server.log.3"]
     assert "line 0399" in (tmp_path / "server.log").read_text()
+
+
+def test_rotating_handler_needs_at_least_one_backup(tmp_path):
+    with pytest.raises(ValueError):
+        server.LockTolerantRotatingFileHandler(tmp_path / "server.log", max_bytes=1000, backup_count=0)
+
+
+@pytest.fixture
+def installed_handlers(monkeypatch):
+    """Record what configure_logging would install, without changing the real logging setup."""
+    handlers = []
+    monkeypatch.setattr(server.logging, "basicConfig", lambda **options: handlers.extend(options["handlers"]))
+    yield handlers
+    for handler in handlers:
+        handler.close()
+
+
+def test_configure_logging_uses_the_console_when_there_is_one(installed_handlers):
+    server.configure_logging("INFO", log_file=None)
+    assert type(installed_handlers[0]) is server.logging.StreamHandler
+
+
+def test_configure_logging_uses_a_rotating_file_when_configured(installed_handlers, tmp_path):
+    server.configure_logging("INFO", log_file=tmp_path / "logs" / "server.log")
+    assert isinstance(installed_handlers[0], server.LockTolerantRotatingFileHandler)
+    assert (tmp_path / "logs").is_dir()  # the folder was created
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="checks the behaviour on non-Windows systems")
+def test_main_reports_the_windows_adapter_on_linux_as_a_configuration_error(monkeypatch, caplog):
+    monkeypatch.setenv("RMC_TOKEN", "t" * 40)
+    monkeypatch.setenv("RMC_CONTROLLER", "windows")
+    monkeypatch.setattr(server, "configure_logging", lambda level, log_file: None)
+
+    assert server.main([]) == 1
+    assert "configuration error: RMC_CONTROLLER=windows can't be used here" in caplog.text

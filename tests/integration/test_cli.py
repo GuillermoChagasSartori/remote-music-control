@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from remote_music_control import cli
 
-from ..conftest import TOKEN
+from ..support import TOKEN
 
 
 @pytest.fixture

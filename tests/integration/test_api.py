@@ -11,7 +11,7 @@ import pytest
 
 from remote_music_control.media_controller import MediaControllerError
 
-from ..conftest import TOKEN
+from ..support import TOKEN
 
 
 def state(client):

@@ -14,8 +14,7 @@ from fastapi.testclient import TestClient
 from remote_music_control.adapters.fake import FakeMediaController
 from remote_music_control.api import create_app
 
-# Long enough to satisfy the server's minimum length rule.
-TOKEN = "test-token-0123456789-abcdefghijklmnopqrstuvwxyz"
+from .support import TOKEN
 
 
 @pytest.fixture(autouse=True)
