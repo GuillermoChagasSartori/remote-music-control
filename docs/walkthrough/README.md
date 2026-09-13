@@ -13,7 +13,7 @@ Pages are added on request, in an order where each one builds on the previous.
 | 02 | [The fake adapter](02-fake-adapter.md) | `adapters/fake.py` | Written |
 | 03 | [The HTTP API](03-http-api.md) | `api.py` | Written |
 | 04 | [Configuration](04-configuration.md) | `config.py` | Written |
-| 05 | The CLI | `cli.py` | Planned |
+| 05 | [The CLI](05-cli.md) | `cli.py` | Written |
 | 06 | The composition root | `server.py` | Planned |
 | 07 | The Windows adapter | `adapters/windows.py` | Planned |
 | 08 | The web page | `web/` | Planned |
