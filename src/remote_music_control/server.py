@@ -77,6 +77,23 @@ def run(settings: ServerSettings) -> None:
     )
 
 
+def lan_ip_address() -> str | None:
+    """Best guess at this PC's address on the local network, or None.
+
+    "Connecting" a UDP socket sends no packets; it only makes the operating
+    system pick the network interface it would use to reach that address, and
+    getsockname() then reports that interface's IP. The target is a reserved
+    documentation address (TEST-NET-1), so nothing real is ever involved.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("192.0.2.1", 9))
+            address = probe.getsockname()[0]
+    except OSError:
+        return None
+    return None if address.startswith("127.") else address
+
+
 def init() -> int:
     """Create the config file with a fresh token (never overwrites an existing one)."""
     path = default_config_path()
@@ -100,15 +117,19 @@ def init() -> int:
             "# RMC_LOG_LEVEL=INFO",
         ],
     )
-    # mDNS name: most home networks resolve "<computer name>.local" to this PC.
-    host = f"{socket.gethostname().lower()}.local"
     print(f"Created {path}")
     print()
     print("Token for clients (put it in their config file as RMC_TOKEN):")
     print(f"  {token}")
     print()
-    print("Pairing link for a browser or phone (opens the page and saves the token):")
-    print(f"  http://{host}:{DEFAULT_PORT}/#token={token}")
+    print("Pairing links for a browser or phone (open one: it shows the player and saves the token).")
+    # Two forms, because neither works everywhere: the mDNS name survives the
+    # PC getting a new IP but Android browsers can't resolve ".local" names;
+    # the IP works on every device but changes unless reserved in the router.
+    print(f"  by name (desktops, iPhone): http://{socket.gethostname().lower()}.local:{DEFAULT_PORT}/#token={token}")
+    ip_address = lan_ip_address()
+    if ip_address:
+        print(f"  by IP (Android, anything):  http://{ip_address}:{DEFAULT_PORT}/#token={token}")
     return 0
 
 

@@ -106,11 +106,18 @@ uv sync          # creates .venv; Windows-only packages install only on Windows
 
 ### On a client
 
-- **Browser or phone:** open the pairing link printed by `init`, e.g.
-  `http://desktop-name.local:8000/#token=…`. The page stores the token and
-  removes it from the address bar. Without the link, the page asks for the
-  token. If `.local` names don't resolve on your network, use the PC's IP
-  address, ideally reserved in the router.
+- **Browser or phone:** open one of the pairing links printed by `init`. The
+  page stores the token and removes it from the address bar; without a link,
+  the page asks for the token.
+  - `http://desktop-name.local:8000/#token=…` — works on desktops and iPhones,
+    and keeps working if the PC's IP changes.
+  - `http://192.168.1.16:8000/#token=…` — needed on **Android**, whose browsers
+    can't resolve `.local` names. Reserve the PC's IP in the router (DHCP
+    reservation) so the address doesn't change.
+
+  Tip: to move a link to a phone without sending the token through a chat
+  app, show it as a QR code in a terminal, e.g.
+  `qrencode -t ansiutf8 "<link>"` on Linux.
 - **CLI:** create `~/.config/remote-music-control/config.env` (Linux) readable
   only by you (`chmod 600`):
 
