@@ -167,7 +167,9 @@ def create_app(controller: MediaController, token: str) -> FastAPI:
             credentials.credentials.encode(), expected_token
         ):
             return
-        reason = "missing token" if credentials is None else "wrong token"
+        # HTTPBearer gives None both when the header is absent and when it uses
+        # another scheme (e.g. "Basic ..."), so "no Bearer token" covers both.
+        reason = "no Bearer token" if credentials is None else "wrong token"
         logger.warning("rejected %s %s from %s: %s", request.method, request.url.path, client_address(request), reason)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
