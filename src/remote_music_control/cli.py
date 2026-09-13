@@ -130,7 +130,9 @@ def run_queue(client: httpx2.Client, args: argparse.Namespace) -> None:
 
 def run_jump(client: httpx2.Client, args: argparse.Namespace) -> None:
     request(client, "POST", f"/api/library/queue/{args.number - 1}/play")
-    run_now(client, args)
+    # A confirmation rather than the player state (as `add` does): the player
+    # is changing tracks at this very moment, so its state would be stale.
+    print(f"playing queue item {args.number}")
 
 
 def run_add(client: httpx2.Client, args: argparse.Namespace) -> None:

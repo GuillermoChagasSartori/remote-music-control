@@ -183,7 +183,7 @@ def test_queue_jump_and_add_commands(run, with_token):
     code, out, _ = run("queue")
     assert code == 0 and out.splitlines()[0].startswith("▶   1. Signal Path")
 
-    assert run("jump", "3")[0] == 0
+    assert run("jump", "3")[:2] == (0, "playing queue item 3\n")
     assert run("queue")[1].splitlines()[2].startswith("▶   3. Port and Adapter")
 
     code, out, _ = run("add", "fake0000007", "--next")
