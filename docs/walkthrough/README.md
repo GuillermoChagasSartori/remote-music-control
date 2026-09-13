@@ -11,7 +11,7 @@ Pages are added on request, in an order where each one builds on the previous.
 |---|---|---|---|
 | 01 | [The port](01-media-controller.md) | `media_controller.py` | Written |
 | 02 | [The fake adapter](02-fake-adapter.md) | `adapters/fake.py` | Written |
-| 03 | The HTTP API | `api.py` | Planned |
+| 03 | [The HTTP API](03-http-api.md) | `api.py` | Written |
 | 04 | Configuration | `config.py` | Planned |
 | 05 | The CLI | `cli.py` | Planned |
 | 06 | The composition root | `server.py` | Planned |
