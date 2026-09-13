@@ -45,7 +45,7 @@ directly, and the whole server would be impossible to run on Linux.
 
 **Why it matters in this project specifically** (ADR 0001): the Windows
 libraries don't install on Linux. Because the API depends on this file and not
-on Windows code, the server, web page, CLI and all 136 tests run on Ubuntu and
+on Windows code, the server, web page, CLI and the whole test suite run on Ubuntu and
 in CI. Only `adapters/windows.py` needed the studio PC.
 
 **The alternative** would have been to call Windows APIs straight from the HTTP

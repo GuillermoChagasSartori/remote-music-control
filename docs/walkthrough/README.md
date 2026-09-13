@@ -10,7 +10,7 @@ Pages are added on request, in an order where each one builds on the previous.
 | # | Page | Module | Status |
 |---|---|---|---|
 | 01 | [The port](01-media-controller.md) | `media_controller.py` | Written |
-| 02 | The fake adapter | `adapters/fake.py` | Planned |
+| 02 | [The fake adapter](02-fake-adapter.md) | `adapters/fake.py` | Written |
 | 03 | The HTTP API | `api.py` | Planned |
 | 04 | Configuration | `config.py` | Planned |
 | 05 | The CLI | `cli.py` | Planned |
