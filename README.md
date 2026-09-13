@@ -141,7 +141,8 @@ as a Windows service gets "access denied"
 ([ADR 0003](docs/decisions/0003-logon-task-instead-of-windows-service.md)).
 Automatic start at logon comes in Phase 7.
 
-How the adapter copes with Chrome briefly dropping its media session on every
+Tested with YouTube Music in Chrome and Firefox. How the adapter copes with
+Chrome briefly dropping its media session on every
 track change: [ADR 0008](docs/decisions/0008-absorbing-chrome-smtc-session-gaps.md).
 
 ## License

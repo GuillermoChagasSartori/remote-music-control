@@ -53,3 +53,7 @@ above it unaware of the quirk:
   detect and the reply waits the full 2 s.
 - The 2 s values are based on measurements of one Chrome version; they are
   named constants at the top of the adapter in case Chrome's behaviour changes.
+- **Firefox** (tested the same day) registers as `firefox.exe` and keeps its
+  session across skips — no gap — but briefly reports "paused" while changing
+  tracks. The same code handles it: `next` answers in ~0.4 s. `previous` took
+  ~2 s to show the new track, so its reply usually hits the timeout.
