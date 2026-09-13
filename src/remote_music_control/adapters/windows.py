@@ -13,7 +13,7 @@ started over SSH or as a Windows service runs in session 0 and gets "access
 denied" from SMTC; see docs/decisions/0003.
 
 This module imports Windows-only packages, so it must only be imported on
-Windows. server.py imports it lazily, only when RMC_CONTROLLER=windows.
+Windows. Only the Windows app uses it (ADR 0014).
 """
 
 import sys

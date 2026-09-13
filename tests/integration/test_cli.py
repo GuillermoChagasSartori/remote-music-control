@@ -195,4 +195,4 @@ def test_library_unavailable_is_explained(run, with_token, library):
     library.available = False
     code, _, err = run("queue")
     assert code == 1
-    assert "HTTP 503" in err and "not connected" in err
+    assert "HTTP 503" in err and "not ready" in err

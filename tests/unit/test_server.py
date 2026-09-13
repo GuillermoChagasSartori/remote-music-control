@@ -1,4 +1,4 @@
-"""Unit tests for the server entry point: adapter selection, `init`, startup errors."""
+"""Unit tests for the development server entry point: `init`, startup errors, logging."""
 
 import logging
 import os
@@ -6,33 +6,12 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from remote_music_control import server
-from remote_music_control.adapters.fake import FakeMediaController
 from remote_music_control.config import ServerSettings, read_config_file
 
-
-def settings(controller: str) -> ServerSettings:
-    return ServerSettings(
-        controller=controller,
-        host="127.0.0.1",
-        port=8000,
-        player_apps=("chrome.exe",),
-        token="t" * 40,
-        log_level="INFO",
-        log_file=None,
-        extension_id="hgchacmedljophnblmbdmogbkafcmdol",
-    )
-
-
-def test_build_controller_returns_the_fake():
-    assert isinstance(server.build_controller(settings("fake")), FakeMediaController)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="checks the behaviour on non-Windows systems")
-def test_windows_adapter_elsewhere_is_a_configuration_error():
-    with pytest.raises(server.ConfigError, match="RMC_CONTROLLER=windows can't be used here"):
-        server.build_controller(settings("windows"))
+SETTINGS = ServerSettings(host="127.0.0.1", port=8000, token="t" * 40, log_level="INFO", log_file=None)
 
 
 def test_init_creates_a_config_file_with_a_token(isolated_environment, capsys):
@@ -67,13 +46,17 @@ def test_run_wires_settings_into_the_app_and_uvicorn(monkeypatch):
     calls = {}
     monkeypatch.setattr(server.uvicorn, "run", lambda app, **options: calls.update(app=app, **options))
 
-    server.run(settings("fake"))
+    server.run(SETTINGS)
 
     assert calls["host"] == "127.0.0.1"
     assert calls["port"] == 8000
     assert calls["access_log"] is False
     assert calls["log_config"] is None
     assert calls["app"].title == "Remote Music Control"
+    # The development server uses the fakes: the demo tracks and catalogue.
+    with TestClient(calls["app"], headers={"Authorization": "Bearer " + "t" * 40}) as client:
+        assert client.get("/api/state").json()["now_playing"]["title"]
+        assert client.get("/api/library/status").json() == {"available": True}
 
 
 def test_main_starts_the_server_when_configured(monkeypatch):
@@ -83,15 +66,10 @@ def test_main_starts_the_server_when_configured(monkeypatch):
     monkeypatch.setattr(server, "configure_logging", lambda level, log_file: None)
 
     assert server.main([]) == 0
-    assert started[0].controller == "fake"
+    assert started[0].port == 8000
 
 
-def test_unknown_controller_is_a_configuration_error():
-    with pytest.raises(server.ConfigError):
-        server.build_controller(settings("vlc"))
-
-
-# --- Running without a console (pythonw.exe, as the logon task does) -------------------
+# --- Running without a console (like pythonw.exe) ----------------------------------------
 
 
 def test_logs_go_to_stderr_when_there_is_a_console():
@@ -116,7 +94,7 @@ def test_startup_error_without_a_console_is_written_to_the_log_file(isolated_env
     assert "configuration error: no RMC_TOKEN" in log
 
 
-def test_unexpected_crash_exits_with_failure_so_the_task_restarts_it(monkeypatch, caplog):
+def test_unexpected_crash_is_logged_and_exits_with_failure(monkeypatch, caplog):
     monkeypatch.setenv("RMC_TOKEN", "t" * 40)
     monkeypatch.setattr(server, "configure_logging", lambda level, log_file: None)
 
@@ -225,25 +203,3 @@ def test_configure_logging_uses_a_rotating_file_when_configured(installed_handle
     server.configure_logging("INFO", log_file=tmp_path / "logs" / "server.log")
     assert isinstance(installed_handlers[0], server.LockTolerantRotatingFileHandler)
     assert (tmp_path / "logs").is_dir()  # the folder was created
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="checks the behaviour on non-Windows systems")
-def test_main_reports_the_windows_adapter_on_linux_as_a_configuration_error(monkeypatch, caplog):
-    monkeypatch.setenv("RMC_TOKEN", "t" * 40)
-    monkeypatch.setenv("RMC_CONTROLLER", "windows")
-    monkeypatch.setattr(server, "configure_logging", lambda level, log_file: None)
-
-    assert server.main([]) == 1
-    assert "configuration error: RMC_CONTROLLER=windows can't be used here" in caplog.text
-
-
-def test_library_is_fake_with_the_fake_player():
-    library, bridge = server.build_library(settings("fake"))
-    assert type(library).__name__ == "FakeLibraryController"
-    assert bridge is None
-
-
-def test_library_goes_through_the_extension_on_windows():
-    library, bridge = server.build_library(settings("windows"))
-    assert type(library).__name__ == "ExtensionLibraryController"
-    assert bridge is not None

@@ -1,8 +1,12 @@
-"""Server entry point: `music-server` runs the server, `music-server init` sets it up.
+"""Development server: `music-server` runs the API and web page with the fake adapters.
 
-This module is the *composition root* — the single place where concrete
-classes are chosen and wired together. Every other module works with
-abstractions; only here do we decide "use the fake" or "use Windows".
+It runs on any system, so the API, web page, CLI and tests can be worked on
+without the studio PC. On Windows the real thing is the app (ADR 0014), which
+wires in the real adapters; the logging and startup helpers here are shared
+with it.
+
+This module is a *composition root* — a place where concrete classes are
+chosen and wired together. Every other module works with abstractions.
 """
 
 import argparse
@@ -15,6 +19,7 @@ from pathlib import Path
 
 import uvicorn
 
+from .adapters.fake import FakeMediaController
 from .adapters.fake_library import FakeLibraryController
 from .api import create_app
 from .config import (
@@ -27,48 +32,11 @@ from .config import (
     generate_token,
     load_server_settings,
 )
-from .extension_bridge import ExtensionBridge, ExtensionLibraryController
-from .library import LibraryController
-from .media_controller import MediaController
 from .pairing import lan_ip_address
 
 # A fixed name rather than __name__: run with `python -m`, __name__ would be
 # "__main__", which says nothing in the log.
 logger = logging.getLogger("remote_music_control.server")
-
-
-def build_controller(settings: ServerSettings) -> MediaController:
-    """Return the adapter selected by configuration (a simple *factory function*)."""
-    # Adapters are imported inside their branch rather than at the top, so each
-    # adapter's dependencies load only when that adapter is chosen. The Windows
-    # adapter imports packages that don't exist on Linux.
-    if settings.controller == "fake":
-        from .adapters.fake import FakeMediaController
-
-        return FakeMediaController()
-    if settings.controller == "windows":
-        try:
-            from .adapters.windows import WindowsMediaController
-        except ImportError as error:
-            # On Linux the adapter refuses to import (and its packages aren't
-            # installed): that's a settings problem, so report it as one.
-            raise ConfigError(f"RMC_CONTROLLER=windows can't be used here: {error}") from error
-
-        return WindowsMediaController(player_apps=settings.player_apps)
-    raise ConfigError(f"unknown controller {settings.controller!r}")
-
-
-def build_library(settings: ServerSettings) -> tuple[LibraryController, ExtensionBridge | None]:
-    """Search and the queue: through the Chrome extension on the studio PC, a fake elsewhere.
-
-    Tied to the media controller choice: the extension only makes sense where
-    the real browser is (ADR 0013). Returns the bridge too, so the API can
-    offer the extension its WebSocket endpoint.
-    """
-    if settings.controller == "windows":
-        bridge = ExtensionBridge()
-        return ExtensionLibraryController(bridge), bridge
-    return FakeLibraryController(), None
 
 
 LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -137,8 +105,8 @@ class LockTolerantRotatingFileHandler(RotatingFileHandler):
 def log_destination(configured_file: Path | None, stderr) -> Path | None:
     """Decide where logs go: a file path, or None for stderr.
 
-    Started at logon, the server runs under pythonw.exe — the Windows Python
-    that opens no console window — and there `sys.stderr` is None. Logging (or
+    The Windows app runs without a console window (like pythonw.exe, the
+    Windows Python that opens none), and there `sys.stderr` is None. Logging (or
     printing) to it would crash, so without an explicit RMC_LOG_FILE the log
     then goes to the default file next to the config file.
     """
@@ -168,9 +136,9 @@ def configure_logging(level: str, log_file: Path | None) -> None:
 def report_startup_error(message: str) -> None:
     """Show an error that happens before logging is set up.
 
-    On a console it is printed. Under pythonw there is nowhere to print, so it
-    is appended to the default log file — otherwise a broken config file would
-    make the server at logon fail with no trace at all.
+    On a console it is printed. Without a console there is nowhere to print,
+    so it is appended to the default log file — otherwise a broken config file
+    would make the app fail with no trace at all.
     """
     line = f"music-server: {message}"
     if sys.stderr is not None:
@@ -183,15 +151,8 @@ def report_startup_error(message: str) -> None:
 
 
 def run(settings: ServerSettings) -> None:
-    controller = build_controller(settings)
-    library, extension_bridge = build_library(settings)
-    app = create_app(
-        controller,
-        token=settings.token,
-        library=library,
-        extension_bridge=extension_bridge,
-        extension_id=settings.extension_id,
-    )
+    controller = FakeMediaController()
+    app = create_app(controller, token=settings.token, library=FakeLibraryController())
     logger.info(
         "starting with %s on %s:%d", type(controller).__name__, settings.host, settings.port
     )
@@ -222,12 +183,10 @@ def init() -> int:
             "# Real environment variables with the same names take precedence.",
             f"RMC_TOKEN={token}",
             "",
-            "# On the Windows PC, uncomment these to control the browser from the LAN:",
-            "# RMC_CONTROLLER=windows",
+            "# Uncomment to reach this server from other devices on the LAN:",
             "# RMC_HOST=0.0.0.0",
             "",
             "# RMC_PORT=8000",
-            "# RMC_PLAYER_APPS=chrome.exe,firefox.exe",
             "# RMC_LOG_LEVEL=INFO",
             "# Log file; default is the console, or server.log next to this file when there is none:",
             "# RMC_LOG_FILE=C:\\path\\to\\server.log",
@@ -253,7 +212,9 @@ def init() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="music-server", description="Remote Music Control server.")
+    parser = argparse.ArgumentParser(
+        prog="music-server", description="Remote Music Control development server (fake player and library)."
+    )
     commands = parser.add_subparsers(dest="command", metavar="COMMAND")
     commands.add_parser("init", help="create the config file with a new token")
     args = parser.parse_args(argv)
@@ -271,14 +232,9 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(settings.log_level, settings.log_file)
     try:
         run(settings)
-    except ConfigError as error:
-        logger.error("configuration error: %s", error)
-        return 1
     except Exception:
         # Anything unforeseen: record it with its traceback, and exit with a
-        # failure code, as a program should when it didn't do its job. (The
-        # logon task restarts the server within a minute either way: its
-        # watchdog trigger doesn't depend on the exit code, see ADR 0011.)
+        # failure code, as a program should when it didn't do its job.
         logger.exception("server stopped because of an unexpected error")
         return 1
     return 0

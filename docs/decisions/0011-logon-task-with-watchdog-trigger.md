@@ -1,6 +1,6 @@
 # 0011 — Logon task with a clock-based watchdog trigger
 
-**Status:** Accepted · 2026-09-13 · Implements ADR 0003
+**Status:** Superseded by [0014](0014-own-player-window-instead-of-the-browser.md) · 2026-09-13 · Implements ADR 0003
 
 ## Context
 

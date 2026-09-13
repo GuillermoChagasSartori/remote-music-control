@@ -1,6 +1,6 @@
 # 0003 — Start at logon with Task Scheduler, not as a Windows service
 
-**Status:** Accepted · 2026-09-12
+**Status:** Superseded by [0014](0014-own-player-window-instead-of-the-browser.md) · 2026-09-12
 
 ## Context
 

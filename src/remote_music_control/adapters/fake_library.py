@@ -37,13 +37,13 @@ class FakeLibraryController(LibraryController):
         self._catalogue = catalogue
         self._queue: list[Song] = list(catalogue[:4])
         self._current = 0
-        # Public on purpose: set to False to simulate the extension being
-        # disconnected (the "library unavailable" path).
+        # Public on purpose: set to False to simulate the YouTube Music window
+        # not being ready (the "library unavailable" path).
         self.available = available
 
     def _require_available(self) -> None:
         if not self.available:
-            raise LibraryUnavailableError("the Chrome extension is not connected")
+            raise LibraryUnavailableError("the YouTube Music window is not ready")
 
     async def is_available(self) -> bool:
         return self.available

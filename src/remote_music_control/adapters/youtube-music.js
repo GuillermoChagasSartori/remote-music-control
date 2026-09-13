@@ -2,13 +2,15 @@
 //
 // YouTube Music has no public API for search or the queue. These functions
 // use the web app's own, undocumented machinery, found and verified in the
-// Phase 8 spike (ADR 0013). When Google changes YouTube Music and a feature
-// breaks, this is the one file to fix.
+// Phase 8 spike (ADR 0013) and again inside the app's own window (ADR 0014).
+// When Google changes YouTube Music and a feature breaks, this is the one file
+// to fix.
 //
-// Each function runs INSIDE the YouTube Music page (chrome.scripting with
-// world "MAIN"). Chrome sends it there as source text, so every function must
-// be self-contained: it can't use helpers defined elsewhere in this file.
-// That is why small helpers are repeated below.
+// The functions run INSIDE the YouTube Music page shown in the app's window:
+// page_library.py wraps this whole file in a script, adds a call to one
+// function and has the window evaluate it. Each function is self-contained
+// (small helpers are repeated rather than shared), so a fix to one can't
+// break another.
 //
 // Each returns { ok: true, value } or { ok: false, kind, message } and never
 // throws. kind "not_found" and "page_changed" are understood by the server.
@@ -180,4 +182,6 @@ async function addToQueue(videoId, position) {
   }
 }
 
-export const PAGE_FUNCTIONS = { search, getQueue, jumpTo, playNow, addToQueue };
+// The names page_library.py calls. A plain constant, not an `export`: the file
+// is evaluated as an ordinary script inside a function, not loaded as a module.
+const PAGE_FUNCTIONS = { search, getQueue, jumpTo, playNow, addToQueue };

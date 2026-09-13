@@ -348,7 +348,7 @@ for (const tab of document.querySelectorAll(".view-tab")) {
   tab.addEventListener("click", () => showView(tab.dataset.viewTarget));
 }
 
-// Library requests fail with 503 when the Chrome extension isn't connected.
+// Library requests fail with 503 when the YouTube Music window isn't ready.
 // That's shown inside the panel, where the user is looking, not as a banner.
 function showLibraryMessage(panel, text) {
   const message = panel.querySelector(".library-message");
@@ -358,7 +358,7 @@ function showLibraryMessage(panel, text) {
 
 function handleLibraryError(panel, error) {
   if (error instanceof ApiError && error.status === 503) {
-    showLibraryMessage(panel, "Search and the queue need the Chrome extension on the studio PC, with YouTube Music open. " + error.message);
+    showLibraryMessage(panel, "Search and the queue need the Remote Music Control app open on the studio PC. " + error.message);
   } else {
     handleError(error);
   }

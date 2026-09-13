@@ -1,8 +1,8 @@
 """All configuration, in one place: environment variables and one config file.
 
 This follows factor III of the *twelve-factor app* methodology ("store config in
-the environment"): anything that differs between machines — which adapter to
-use, which address to listen on, the token — comes from outside the code.
+the environment"): anything that differs between machines — which address to
+listen on, the port, the token — comes from outside the code.
 
 Values are looked up in this order (first match wins):
 
@@ -21,29 +21,20 @@ with other programs' settings.
 """
 
 import os
-import re
 import secrets
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-CONTROLLER_CHOICES = ("fake", "windows")
 LOG_LEVEL_CHOICES = ("DEBUG", "INFO", "WARNING", "ERROR")
 
-DEFAULT_CONTROLLER = "fake"
 # Loopback by default: a fresh install is unreachable from the network until
-# RMC_HOST is set deliberately (to 0.0.0.0 on the Windows PC).
+# RMC_HOST is set deliberately.
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
 DEFAULT_SERVER_URL = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
-# Executable names whose media session and audio the Windows adapter controls.
-DEFAULT_PLAYER_APPS = ("chrome.exe", "firefox.exe")
 DEFAULT_LOG_LEVEL = "INFO"
-# The Chrome extension's fixed ID, derived from the public key in its manifest
-# (extension/chrome/manifest.json). The server accepts the extension's
-# WebSocket only from this origin (ADR 0013).
-DEFAULT_EXTENSION_ID = "hgchacmedljophnblmbdmogbkafcmdol"
 
 # secrets.token_urlsafe(32) produces 43 characters (32 random bytes). Anything
 # much shorter was probably typed by hand and may be guessable.
@@ -56,14 +47,11 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class ServerSettings:
-    controller: str
     host: str
     port: int
-    player_apps: tuple[str, ...]
     token: str
     log_level: str
     log_file: Path | None  # None: log to stderr (see server.log_destination)
-    extension_id: str
 
 
 @dataclass(frozen=True)
@@ -157,12 +145,6 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
     values = load_values(environ)
     config_path = default_config_path(environ)
 
-    controller = values.get("RMC_CONTROLLER", DEFAULT_CONTROLLER).strip().lower()
-    if controller not in CONTROLLER_CHOICES:
-        raise ConfigError(
-            f"RMC_CONTROLLER={controller!r} is not valid; choose one of: {', '.join(CONTROLLER_CHOICES)}"
-        )
-
     raw_port = values.get("RMC_PORT", str(DEFAULT_PORT))
     try:
         port = int(raw_port)
@@ -170,12 +152,6 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
         raise ConfigError(f"RMC_PORT={raw_port!r} is not a number") from None
     if not 1 <= port <= 65535:
         raise ConfigError(f"RMC_PORT={port} is outside the valid range 1–65535")
-
-    # Comma-separated list, e.g. RMC_PLAYER_APPS=chrome.exe,msedge.exe
-    raw_apps = values.get("RMC_PLAYER_APPS", ",".join(DEFAULT_PLAYER_APPS))
-    player_apps = tuple(name.strip().lower() for name in raw_apps.split(",") if name.strip())
-    if not player_apps:
-        raise ConfigError("RMC_PLAYER_APPS must name at least one application, e.g. chrome.exe")
 
     token = values.get("RMC_TOKEN", "").strip()
     if not token:
@@ -196,20 +172,12 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
 
     raw_log_file = values.get("RMC_LOG_FILE", "").strip()
 
-    # Chrome extension IDs are 32 letters from a to p.
-    extension_id = values.get("RMC_EXTENSION_ID", DEFAULT_EXTENSION_ID).strip()
-    if not re.fullmatch(r"[a-p]{32}", extension_id):
-        raise ConfigError(f"RMC_EXTENSION_ID={extension_id!r} is not a Chrome extension ID (32 letters a-p)")
-
     return ServerSettings(
-        controller=controller,
         host=values.get("RMC_HOST", DEFAULT_HOST).strip(),
         port=port,
-        player_apps=player_apps,
         token=token,
         log_level=log_level,
         log_file=Path(raw_log_file) if raw_log_file else None,
-        extension_id=extension_id,
     )
 
 

@@ -2,10 +2,10 @@
 
 A second port, next to MediaController (page 01 of the walkthrough). Playback
 controls come from Windows (SMTC); search and the queue exist only inside the
-YouTube Music web app, reached through a Chrome extension (ADR 0013). Keeping
-them behind their own interface means the API, web page, CLI and tests don't
-know or care how they're implemented — the fake adapter below serves them on
-Linux, the extension adapter (extension_bridge.py) on the studio PC.
+YouTube Music web app, which the app shows in its own window (ADR 0014).
+Keeping them behind their own interface means the API, web page, CLI and tests
+don't know or care how they're implemented — the fake adapter serves them on
+Linux, the page adapter (adapters/page_library.py) in the Windows app.
 """
 
 from abc import ABC, abstractmethod
@@ -51,7 +51,7 @@ class LibraryError(Exception):
 
 
 class LibraryUnavailableError(LibraryError):
-    """Nothing to talk to: the extension isn't connected, or no YouTube Music tab is open."""
+    """Nothing to talk to: the YouTube Music window isn't open, or hasn't loaded yet."""
 
 
 class QueueItemNotFoundError(LibraryError):

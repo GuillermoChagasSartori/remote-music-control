@@ -13,7 +13,6 @@ dependencies = [
     "httpx2>=2.12.0",    # HTTP client for the CLI; same library as FastAPI's test client (docs/decisions/0010)
     "uvicorn>=0.52.4",   # ASGI server that actually listens on the socket and runs the app
     "segno>=1.6.6",      # QR codes for the pairing page, as SVG; pure Python, no dependencies
-    "websockets>=15",    # WebSocket support for uvicorn: the Chrome extension's connection (ADR 0013)
     # Network card MAC address for the pairing page (all systems); on Windows also names
     # the process behind each audio session.
     "psutil>=7.2.2",

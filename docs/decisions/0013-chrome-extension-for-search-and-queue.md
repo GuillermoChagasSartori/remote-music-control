@@ -1,6 +1,6 @@
 # 0013 — A Chrome extension for search and the queue
 
-**Status:** Accepted · 2026-09-13 · Based on a spike (branch `spike-phase8`)
+**Status:** Superseded by [0014](0014-own-player-window-instead-of-the-browser.md) · 2026-09-13 · Based on a spike (branch `spike-phase8`)
 
 ## Context
 

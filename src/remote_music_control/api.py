@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Path as PathParam, Query, Request, WebSocket, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Path as PathParam, Query, Request, status
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
@@ -36,7 +36,6 @@ from pydantic import BaseModel, Field
 from starlette.requests import HTTPConnection
 
 from . import pairing
-from .extension_bridge import ExtensionBridge, ExtensionProtocolError
 from .library import (
     InsertPosition,
     LibraryController,
@@ -109,7 +108,7 @@ class SearchResponse(BaseModel):
 
 class PlaySongRequest(BaseModel):
     # YouTube video ids are letters, digits, "-" and "_". Checking the shape
-    # rejects nonsense before it travels to the extension.
+    # rejects nonsense before it travels to YouTube Music.
     video_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     position: InsertPosition = InsertPosition.NOW
 
@@ -169,14 +168,10 @@ def create_app(
     token: str,
     *,
     library: LibraryController,
-    extension_bridge: ExtensionBridge | None = None,
-    extension_id: str | None = None,
 ) -> FastAPI:
     """Build the FastAPI application around the given adapters and token.
 
-    `library` serves search and the queue. `extension_bridge` and
-    `extension_id` are set on the studio PC, where the Chrome extension
-    connects to /extension/ws; without them that endpoint doesn't exist.
+    `controller` serves playback and volume; `library` serves search and the queue.
 
     This is the *application factory* pattern: a function that returns a fresh
     app, instead of one global `app` object created at import time. Each call
@@ -229,7 +224,7 @@ def create_app(
     @app.exception_handler(LibraryUnavailableError)
     async def library_unavailable(request: Request, error: LibraryUnavailableError) -> JSONResponse:
         # 503 Service Unavailable: the feature exists but can't be used right
-        # now (extension not connected, no YouTube Music tab) — try again later.
+        # now (the YouTube Music window isn't open or ready) — try again later.
         return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": str(error)})
 
     @app.exception_handler(QueueItemNotFoundError)
@@ -238,8 +233,8 @@ def create_app(
 
     @app.exception_handler(LibraryError)
     async def library_failed(request: Request, error: LibraryError) -> JSONResponse:
-        # 502, like a player failure: the thing behind us (YouTube Music, via
-        # the extension) failed — for example because its page changed.
+        # 502, like a player failure: the thing behind us (YouTube Music)
+        # failed — for example because its page changed.
         logger.warning("%s %s failed: %s", request.method, request.url.path, error)
         return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(error)})
 
@@ -377,7 +372,7 @@ def create_app(
         await controller.set_muted(body.muted)
         return await read_volume()
 
-    # Library: search and the queue (ADR 0013). Also behind the token.
+    # Library: search and the queue (ADR 0013, 0014). Also behind the token.
 
     @api.get("/library/status")
     async def library_status() -> LibraryStatusResponse:
@@ -400,33 +395,6 @@ def create_app(
         await library.play(body.video_id, body.position)
 
     app.include_router(api)
-
-    # --- The Chrome extension's connection (studio PC only) ---
-
-    if extension_bridge is not None:
-        extension_origin = f"chrome-extension://{extension_id}"
-
-        @app.websocket("/extension/ws")
-        async def extension_socket(websocket: WebSocket) -> None:
-            # Browsers let any web page open a WebSocket to 127.0.0.1 — the
-            # same-origin rules that protect fetch() don't apply (an attack
-            # called *Cross-Site WebSocket Hijacking*). So the connection is
-            # accepted only if it comes from this PC, names this PC in Host
-            # (blocks DNS rebinding) and carries our extension's Origin, which
-            # browsers set themselves and web pages can't forge (ADR 0013).
-            origin = websocket.headers.get("origin")
-            if not is_same_pc_request(websocket) or origin != extension_origin:
-                logger.warning(
-                    "refused extension connection from %s with origin %r", client_address(websocket), origin
-                )
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                return
-            await websocket.accept()
-            try:
-                await extension_bridge.serve(websocket)
-            except ExtensionProtocolError as error:
-                logger.warning("closed extension connection: %s", error)
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
     # --- Web page (public: static files, no secrets) ---
 

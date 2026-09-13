@@ -213,7 +213,7 @@ def build_parser(default_url: str) -> argparse.ArgumentParser:
         step.add_argument("step", nargs="?", type=volume_step, help="points to move (default: 5)")
         step.set_defaults(handler=run_volume_step, path=path)
 
-    # Library commands (search and the queue, through the Chrome extension).
+    # Library commands (search and the queue, from the YouTube Music window).
     search = commands.add_parser("search", help='search YouTube Music: music search aruarian dance')
     search.add_argument("query", nargs="+", help="words to search for")
     search.set_defaults(handler=run_search)

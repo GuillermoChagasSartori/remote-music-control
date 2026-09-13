@@ -39,10 +39,8 @@ def write_config(tmp_path: Path, text: str, encoding: str = "utf-8") -> None:
 
 def test_defaults_when_only_the_token_is_set(tmp_path):
     settings = load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN))
-    assert settings.controller == "fake"
     assert settings.host == "127.0.0.1"
     assert settings.port == 8000
-    assert settings.player_apps == ("chrome.exe", "firefox.exe")
     assert settings.log_level == "INFO"
     assert settings.token == GOOD_TOKEN
 
@@ -58,9 +56,9 @@ def test_short_token_is_rejected(tmp_path):
 
 
 def test_values_are_read_from_the_config_file(tmp_path):
-    write_config(tmp_path, f"RMC_TOKEN={GOOD_TOKEN}\nRMC_CONTROLLER=windows\nRMC_PORT=9000\n")
+    write_config(tmp_path, f"RMC_TOKEN={GOOD_TOKEN}\nRMC_HOST=0.0.0.0\nRMC_PORT=9000\n")
     settings = load_server_settings(environment(tmp_path))
-    assert (settings.controller, settings.port) == ("windows", 9000)
+    assert (settings.host, settings.port) == ("0.0.0.0", 9000)
 
 
 def test_environment_variables_override_the_config_file(tmp_path):
@@ -78,24 +76,15 @@ def test_empty_environment_variable_does_not_hide_the_config_file(tmp_path):
 @pytest.mark.parametrize(
     ("variables", "message"),
     [
-        ({"RMC_CONTROLLER": "vlc"}, "RMC_CONTROLLER"),
         ({"RMC_PORT": "eighty"}, "not a number"),
         ({"RMC_PORT": "70000"}, "valid range"),
         ({"RMC_PORT": "0"}, "valid range"),
         ({"RMC_LOG_LEVEL": "LOUD"}, "RMC_LOG_LEVEL"),
-        ({"RMC_PLAYER_APPS": " , "}, "at least one"),
     ],
 )
 def test_invalid_values_are_reported(tmp_path, variables, message):
     with pytest.raises(ConfigError, match=message):
         load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, **variables))
-
-
-def test_player_apps_are_split_trimmed_and_lowercased(tmp_path):
-    settings = load_server_settings(
-        environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_PLAYER_APPS=" Chrome.exe, msedge.exe ,")
-    )
-    assert settings.player_apps == ("chrome.exe", "msedge.exe")
 
 
 def test_log_file_is_optional(tmp_path):
@@ -214,11 +203,3 @@ def test_generated_tokens_are_long_enough_and_different():
     tokens = {generate_token() for _ in range(20)}
     assert len(tokens) == 20
     assert all(len(token) >= MIN_TOKEN_LENGTH for token in tokens)
-
-
-def test_extension_id_has_a_default_and_is_validated(tmp_path):
-    assert load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN)).extension_id == "hgchacmedljophnblmbdmogbkafcmdol"
-    other = "abcdefghijklmnopabcdefghijklmnop"
-    assert load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_EXTENSION_ID=other)).extension_id == other
-    with pytest.raises(ConfigError, match="RMC_EXTENSION_ID"):
-        load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_EXTENSION_ID="not-an-id"))
