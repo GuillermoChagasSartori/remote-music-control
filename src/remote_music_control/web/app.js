@@ -44,9 +44,15 @@ let token = null;
 function loadToken() {
   const match = location.hash.match(/^#token=(.+)$/);
   if (match) {
-    saveToken(decodeURIComponent(match[1]));
+    // Remove the token from the address bar first, whatever happens next.
     history.replaceState(null, "", location.pathname + location.search);
-    return;
+    try {
+      saveToken(decodeURIComponent(match[1]));
+      return;
+    } catch {
+      // A damaged link (e.g. a cut-off "%" escape): ignore it and fall back to
+      // a saved token or the token form, instead of stopping the whole script.
+    }
   }
   try {
     token = localStorage.getItem(TOKEN_STORAGE_KEY);
