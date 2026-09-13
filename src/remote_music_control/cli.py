@@ -219,11 +219,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with make_client(args.url, settings.token) as client:
             args.handler(client, args)
-    # Order matters: specific errors first, the general HTTPError last.
-    except httpx2.ConnectError:
-        print(f"music: cannot connect to server at {args.url} — is it running?", file=sys.stderr)
+    # Order matters: Python uses the first matching `except`, so specific errors
+    # come first and the general HTTPError last.
+    # ConnectError: nothing listening (server stopped). ConnectTimeout: no reply
+    # at all (PC off or unreachable) — technically a timeout, but for the user
+    # it's the same problem, so it gets the same message.
+    except (httpx2.ConnectError, httpx2.ConnectTimeout):
+        print(f"music: cannot connect to server at {args.url} — is it running and reachable?", file=sys.stderr)
         return 1
-    except httpx2.TimeoutException:
+    except httpx2.TimeoutException:  # connected, but the answer took too long
         print(f"music: server at {args.url} did not answer in time", file=sys.stderr)
         return 1
     except httpx2.HTTPStatusError as error:

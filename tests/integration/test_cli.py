@@ -126,6 +126,14 @@ def client_failing_with(error):
     return lambda url, token: httpx2.Client(base_url=url, transport=httpx2.MockTransport(handler))
 
 
+def test_unreachable_pc_is_reported_as_cannot_connect(with_token, monkeypatch, capsys):
+    # A PC that is switched off doesn't refuse the connection; it never answers,
+    # and httpx2 raises ConnectTimeout (a TimeoutException, not a ConnectError).
+    monkeypatch.setattr(cli, "make_client", client_failing_with(httpx2.ConnectTimeout("no reply")))
+    assert cli.main(["now"]) == 1
+    assert "cannot connect to server" in capsys.readouterr().err
+
+
 def test_slow_server_gives_a_timeout_message(with_token, monkeypatch, capsys):
     monkeypatch.setattr(cli, "make_client", client_failing_with(httpx2.ReadTimeout("too slow")))
     assert cli.main(["now"]) == 1
