@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Without this, phones render the page at desktop width and shrink it. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Tells the browser the page supports both themes (form controls, scrollbars). -->
+  <meta name="color-scheme" content="light dark">
+  <title>Music</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- `defer`: download in parallel, run after the HTML is parsed, so the
+       script can find every element by id. -->
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <!-- data-status drives which icons and styles show; app.js keeps it updated.
+       "connecting" | "playing" | "paused" | "stopped" | "none" (no player open) -->
+  <main id="player" class="player" data-status="connecting">
+
+    <p id="banner" class="banner" role="alert" hidden></p>
+
+    <!-- aria-live: screen readers announce track changes without focus moving. -->
+    <section class="track" aria-live="polite">
+      <p id="status" class="status">Connecting…</p>
+      <h1 id="title" class="title">&nbsp;</h1>
+      <p id="artist" class="artist">&nbsp;</p>
+      <p id="album" class="album">&nbsp;</p>
+    </section>
+
+    <section class="transport" aria-label="Playback">
+      <button type="button" class="control" data-path="/api/previous" aria-label="Previous track">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6L18 6v12z"/></svg>
+      </button>
+      <button type="button" class="control primary" data-path="/api/play-pause" aria-label="Play or pause">
+        <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+      </button>
+      <button type="button" class="control" data-path="/api/next" aria-label="Next track">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+      </button>
+    </section>
+
+    <section class="volume" aria-label="Volume">
+      <!-- Two rows: the slider gets the full width (it needs room to be
+           usable on a phone); the buttons sit centered underneath. -->
+      <div class="volume-slider">
+        <input id="volume" type="range" min="0" max="100" step="1" value="0" aria-label="Volume level">
+        <output id="volume-value" for="volume" class="volume-value">–</output>
+      </div>
+      <div class="volume-buttons">
+        <button type="button" class="control small" data-volume-path="/api/volume/down" aria-label="Volume down">−</button>
+        <button type="button" id="mute" class="control small" aria-label="Mute" aria-pressed="false">
+          <svg class="icon-sound" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+          <svg class="icon-muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9zm12.6-.4 1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1z"/></svg>
+        </button>
+        <button type="button" class="control small" data-volume-path="/api/volume/up" aria-label="Volume up">+</button>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

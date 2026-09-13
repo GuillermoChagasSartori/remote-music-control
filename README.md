@@ -4,9 +4,13 @@ Control YouTube Music playing in a browser on a Windows PC — play/pause, skip,
 volume, now-playing — from a web page or a CLI on any other machine on the same
 home network.
 
-> **Status:** early development (Phase 2). Play/pause, skip, volume and
-> now-playing work over HTTP and the CLI, against an in-memory fake player.
-> The real Windows adapter comes in Phase 4.
+> **Status:** early development (Phase 3). Play/pause, skip, volume and
+> now-playing work from the web page and the CLI, against an in-memory fake
+> player. The real Windows adapter comes in Phase 4.
+
+<p align="center">
+  <img src="docs/images/web-ui.png" alt="Web UI showing the current track, playback buttons and volume controls" width="320">
+</p>
 
 ## Why
 
@@ -37,6 +41,7 @@ everything except one adapter is developed and tested on Linux. See
 
 ```
 src/remote_music_control/   application package (server, core, adapters, CLI)
+  web/                      the web page: index.html, style.css, app.js
 tests/                      unit and integration tests (Phase 6)
 docs/decisions/             Architecture Decision Records (ADRs)
 docs/walkthrough/           block-by-block explanation of the code
@@ -61,9 +66,16 @@ uv run music-server
 uv run music health        # -> server ok — controller: FakeMediaController
 ```
 
-Interactive API docs are served at <http://127.0.0.1:8000/docs>.
+Open the web page at <http://127.0.0.1:8000/>; interactive API docs are at
+<http://127.0.0.1:8000/docs>.
 
 ## Usage
+
+### Web page
+
+Open the server's address in any browser. The page refreshes itself every
+second while visible, works on phones, and follows the system light/dark
+theme. Design rationale: [ADR 0007](docs/decisions/0007-web-client-served-by-server.md).
 
 ### CLI
 

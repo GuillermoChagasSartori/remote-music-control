@@ -10,12 +10,18 @@ Endpoint shape (see docs/decisions/0006):
 - Actions are POST to a verb-like path (`POST /api/next`) — RPC-style.
 - State you can overwrite is PUT with the new value (`PUT /api/volume`) — REST-style.
 - `GET /api/state` returns everything a client displays, in one request.
+
+The web page (HTML, CSS, JS in the `web/` folder) is served by this same app,
+so there is nothing to install on the client: open the server's address in a
+browser. See docs/decisions/0007.
 """
 
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, FastAPI, Query, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .media_controller import (
@@ -28,6 +34,10 @@ from .media_controller import (
 )
 
 DEFAULT_VOLUME_STEP = 5
+
+# The web files ship inside the Python package, next to this module, so they
+# are installed wherever the package is — no separate path to configure.
+WEB_DIR = Path(__file__).parent / "web"
 
 
 # --- Request and response bodies ---
@@ -164,4 +174,26 @@ def create_app(controller: MediaController) -> FastAPI:
         return await read_volume()
 
     app.include_router(api)
+
+    # --- Web page ---
+
+    @app.get("/", include_in_schema=False)
+    async def index() -> FileResponse:
+        return FileResponse(WEB_DIR / "index.html")
+
+    # Everything else in web/ (CSS, JS) is served under /static/<filename>.
+    app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+
+    @app.middleware("http")
+    async def revalidate_web_files(request: Request, call_next):
+        # *Middleware* wraps every request: code here runs before and after the
+        # route handler. "no-cache" doesn't disable caching — it tells the
+        # browser to check with the server before reusing a stored copy. The
+        # server answers "304 Not Modified" (no body) if nothing changed, so it
+        # costs almost nothing, and an updated app.js is never served stale.
+        response = await call_next(request)
+        if not request.url.path.startswith("/api"):
+            response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
     return app
