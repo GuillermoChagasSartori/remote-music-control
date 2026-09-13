@@ -42,3 +42,11 @@ def test_track_change_detection():
     assert _is_different_track(other, before)
     assert not _is_different_track(same, before)
     assert _is_different_track(same, None)
+
+
+def test_adapter_accepts_an_owner_process():
+    import os
+
+    from remote_music_control.adapters.windows import WindowsMediaController
+
+    assert isinstance(WindowsMediaController(("msedgewebview2.exe",), owner_pid=os.getpid()), MediaController)

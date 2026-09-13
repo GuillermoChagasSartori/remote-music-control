@@ -26,6 +26,7 @@ from .config import (
     DEFAULT_PORT,
     ConfigError,
     ServerSettings,
+    config_file_lines,
     create_config_file,
     default_config_path,
     default_log_path,
@@ -176,22 +177,7 @@ def init() -> int:
         print(f"music-server: {path} already exists; leaving it unchanged.", file=sys.stderr)
         return 1
     token = generate_token()
-    create_config_file(
-        path,
-        [
-            "# Remote Music Control configuration. Keep this file private.",
-            "# Real environment variables with the same names take precedence.",
-            f"RMC_TOKEN={token}",
-            "",
-            "# Uncomment to reach this server from other devices on the LAN:",
-            "# RMC_HOST=0.0.0.0",
-            "",
-            "# RMC_PORT=8000",
-            "# RMC_LOG_LEVEL=INFO",
-            "# Log file; default is the console, or server.log next to this file when there is none:",
-            "# RMC_LOG_FILE=C:\\path\\to\\server.log",
-        ],
-    )
+    create_config_file(path, config_file_lines(token))
     print(f"Created {path}")
     print()
     print("Token for clients (put it in their config file as RMC_TOKEN):")

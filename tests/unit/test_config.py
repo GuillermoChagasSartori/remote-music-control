@@ -203,3 +203,29 @@ def test_generated_tokens_are_long_enough_and_different():
     tokens = {generate_token() for _ in range(20)}
     assert len(tokens) == 20
     assert all(len(token) >= MIN_TOKEN_LENGTH for token in tokens)
+
+
+# --- The app's settings ------------------------------------------------------------------
+
+
+def test_the_app_can_choose_a_different_default_host(tmp_path):
+    settings = load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN), default_host=config.APP_DEFAULT_HOST)
+    assert settings.host == "0.0.0.0"
+    # A configured value still wins over the default.
+    settings = load_server_settings(
+        environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_HOST="127.0.0.1"), default_host=config.APP_DEFAULT_HOST
+    )
+    assert settings.host == "127.0.0.1"
+
+
+def test_ensure_config_file_creates_a_working_config_once(tmp_path):
+    path = tmp_path / "app" / "config.env"
+
+    assert config.ensure_config_file(path) is True
+    first = path.read_text(encoding="utf-8")
+    assert config.ensure_config_file(path) is False
+    assert path.read_text(encoding="utf-8") == first  # the token phones use is kept
+
+    settings = load_server_settings({"RMC_CONFIG_FILE": str(path)})
+    assert len(settings.token) >= MIN_TOKEN_LENGTH
+    assert settings.port == 8000  # every other setting is a comment

@@ -29,9 +29,13 @@ from pathlib import Path
 
 LOG_LEVEL_CHOICES = ("DEBUG", "INFO", "WARNING", "ERROR")
 
-# Loopback by default: a fresh install is unreachable from the network until
-# RMC_HOST is set deliberately.
+# Loopback by default: the development server is unreachable from the network
+# until RMC_HOST is set deliberately.
 DEFAULT_HOST = "127.0.0.1"
+# The app exists to be used from other devices, so it listens on every network
+# interface. The token still protects it, and the installer's firewall rule
+# admits only the local network (ADR 0009, 0014).
+APP_DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8000
 DEFAULT_SERVER_URL = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
 DEFAULT_LOG_LEVEL = "INFO"
@@ -78,6 +82,17 @@ def default_config_path(environ: Mapping[str, str] = os.environ) -> Path:
 def default_log_path(environ: Mapping[str, str] = os.environ) -> Path:
     """Where the server logs when it has no console: next to the config file."""
     return default_config_path(environ).parent / "server.log"
+
+
+def default_browser_profile_path(environ: Mapping[str, str] = os.environ) -> Path:
+    """Where the app's window keeps its cookies (the YouTube Music sign-in) and cache.
+
+    %LOCALAPPDATA%, not %APPDATA% like the config file: the browser cache is
+    large and belongs to this PC, and "Local" is the folder Windows doesn't copy
+    between PCs on networks with roaming profiles.
+    """
+    base = environ.get("LOCALAPPDATA", "").strip() or Path.home() / "AppData" / "Local"
+    return Path(base) / "remote-music-control" / "webview"
 
 
 def read_config_file(path: Path) -> dict[str, str]:
@@ -135,13 +150,46 @@ def generate_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def config_file_lines(token: str) -> list[str]:
+    """The content of a new config file: the token, and the other settings as comments."""
+    return [
+        "# Remote Music Control configuration. Keep this file private.",
+        "# Real environment variables with the same names take precedence.",
+        f"RMC_TOKEN={token}",
+        "",
+        "# Address to listen on: 127.0.0.1 for this PC only, 0.0.0.0 for the local network.",
+        "# Default: 0.0.0.0 in the app, 127.0.0.1 in the development server.",
+        "# RMC_HOST=0.0.0.0",
+        "# RMC_PORT=8000",
+        "# RMC_LOG_LEVEL=INFO",
+        "# Log file; default is the console, or server.log next to this file when there is none:",
+        "# RMC_LOG_FILE=C:\\path\\to\\server.log",
+    ]
+
+
+def ensure_config_file(path: Path) -> bool:
+    """Create the config file with a new token unless it exists. True if it was created.
+
+    The app calls this on every start, so its first start sets itself up with
+    no command to run. An existing file, and so the token phones are paired
+    with, is never replaced.
+    """
+    try:
+        create_config_file(path, config_file_lines(generate_token()))
+    except FileExistsError:
+        return False
+    return True
+
+
 # --- Settings --------------------------------------------------------------------
 #
 # `environ` is a parameter (defaulting to the real environment) so tests can
 # pass a plain dict instead of modifying os.environ.
 
 
-def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSettings:
+def load_server_settings(
+    environ: Mapping[str, str] = os.environ, default_host: str = DEFAULT_HOST
+) -> ServerSettings:
     values = load_values(environ)
     config_path = default_config_path(environ)
 
@@ -173,7 +221,7 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
     raw_log_file = values.get("RMC_LOG_FILE", "").strip()
 
     return ServerSettings(
-        host=values.get("RMC_HOST", DEFAULT_HOST).strip(),
+        host=values.get("RMC_HOST", default_host).strip(),
         port=port,
         token=token,
         log_level=log_level,

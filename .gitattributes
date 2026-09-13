@@ -7,5 +7,9 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
+# Images are binary: never convert their bytes.
+*.ico binary
+*.png binary
+
 # Use the markdown-aware diff driver for docs.
 *.md diff

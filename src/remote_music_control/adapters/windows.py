@@ -1,16 +1,16 @@
-"""WindowsMediaController: the real adapter, for a browser playing on Windows.
+"""WindowsMediaController: the real adapter, for the app's YouTube Music window on Windows.
 
 Two Windows APIs are combined behind the one MediaController port:
 
 - **SMTC** (System Media Transport Controls, via pywinrt) for play/pause/skip
   and for reading what is playing. Browsers publish their media sessions to it;
   it is what the Windows media flyout uses. See docs/decisions/0002.
-- **Core Audio** (via pycaw) for the volume of the browser process only, not
-  the whole system. SMTC has no volume control.
+- **Core Audio** (via pycaw) for the volume of the player only, not the whole
+  system. SMTC has no volume control.
 
 Both only see media and audio from the *interactive desktop session*. A process
 started over SSH or as a Windows service runs in session 0 and gets "access
-denied" from SMTC; see docs/decisions/0003.
+denied" from SMTC; see docs/decisions/0003. The app runs in the user's session.
 
 This module imports Windows-only packages, so it must only be imported on
 Windows. Only the Windows app uses it (ADR 0014).
@@ -57,6 +57,7 @@ from ..media_controller import (  # noqa: E402
     PlaybackStatus,
     validate_volume,
 )
+from ..processes import is_descendant_of  # noqa: E402
 
 # SMTC has more states than our port (closed, opened, changing...). Anything
 # that isn't clearly playing or paused is reported as stopped.
@@ -80,15 +81,22 @@ COMMAND_SETTLE_TIMEOUT_SECONDS = 2.0
 
 
 class WindowsMediaController(MediaController):
-    def __init__(self, player_apps: tuple[str, ...]) -> None:
-        """`player_apps`: executable names to control, e.g. ("chrome.exe",).
+    def __init__(self, player_apps: tuple[str, ...], owner_pid: int | None = None) -> None:
+        """`player_apps`: executable names to control, e.g. ("msedgewebview2.exe",).
 
         The same names match both the SMTC session's app id and the audio
-        session's process name — for browsers like Chrome they are identical.
+        session's process name — for WebView2 and browsers they are identical.
+
+        `owner_pid`: if given, only audio sessions of processes started (directly
+        or not) by this process are controlled. The app passes its own id, so
+        other programs that also use WebView2 (Teams, Outlook, Widgets) keep
+        their volume. SMTC can't be narrowed this way: it reports only the
+        name (ADR 0014).
         """
         if not player_apps:
             raise ValueError("WindowsMediaController needs at least one player app name")
         self._player_apps = tuple(name.lower() for name in player_apps)
+        self._owner_pid = owner_pid
         # The session manager is requested once and kept. Individual sessions
         # are NOT kept: they are looked up on every call, so when the browser
         # is closed and reopened the next call simply finds the new session.
@@ -142,25 +150,30 @@ class WindowsMediaController(MediaController):
     def _audio_controls(self) -> list:
         """The per-application volume controls of every matching audio session.
 
-        A browser can own several audio sessions; all of them are changed
+        A player can own several audio sessions; all of them are changed
         together so the volume behaves as one control.
         """
         controls = []
         for audio_session in AudioUtilities.GetAllSessions():
+            process = audio_session.Process
+            if process is None:
+                continue  # the system sounds session has no process
             try:
-                process = audio_session.Process
-                name = process.name().lower() if process is not None else ""
+                matches = process.name().lower() in self._player_apps and (
+                    self._owner_pid is None or is_descendant_of(process, self._owner_pid)
+                )
             except psutil.Error:
                 continue  # the process exited while we were looking; skip it
-            if name in self._player_apps:
+            if matches:
                 controls.append(audio_session.SimpleAudioVolume)
         return controls
 
     async def _remembered_while_paused(self, value: int | bool | None) -> int | bool:
         """The last known volume or mute value, if the player is only paused.
 
-        Chrome releases its audio session about 3 minutes after pausing, while
-        its media session (the track) stays. Without an audio session there is
+        Chromium (Chrome, and WebView2 in the app) releases its audio session
+        about 3 minutes after pausing, while its media session (the track)
+        stays. Without an audio session there is
         no volume to read — but Windows restores the application's previous
         volume and mute state when playback resumes (measured), so the last
         value we saw is still the right answer.

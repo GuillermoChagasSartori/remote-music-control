@@ -25,12 +25,21 @@ dependencies = [
     "winrt-windows-foundation-collections>=3.2.1 ; sys_platform == 'win32'",  # the list of sessions
     # Per-application volume through the Windows Core Audio API (SMTC has no volume control).
     "pycaw>=20251023 ; sys_platform == 'win32'",
+    # The app (ADR 0014):
+    "pywebview>=6.2.1 ; sys_platform == 'win32'",  # the window showing YouTube Music, through WebView2
+    "pystray>=0.19.5 ; sys_platform == 'win32'",   # the tray icon and its menu
+    "pillow>=12.3.0 ; sys_platform == 'win32'",    # loads the icon image for pystray (which requires it)
 ]
 
 # Console scripts: `uv sync` installs these as commands inside .venv.
 [project.scripts]
 music = "remote_music_control.cli:main"
 music-server = "remote_music_control.server:main"
+
+# GUI scripts are like console scripts, but on Windows their launcher opens no
+# console window — right for an app that has its own window.
+[project.gui-scripts]
+remote-music-control = "remote_music_control.app.main:main"
 
 [build-system]
 # uv's own build backend: it turns src/remote_music_control into an
@@ -60,9 +69,16 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-# The Windows adapter can't run on Linux CI (see docs/testing-on-windows.md);
-# excluding it keeps the coverage number about code the tests can reach.
-omit = ["*/adapters/windows.py"]
+# Windows-only code can't run on Linux CI (see docs/testing-on-windows.md);
+# excluding it keeps the coverage number about code the tests can reach. The
+# app's testable parts (page, texts, window actions, background server) are
+# in separate modules so they stay measured.
+omit = [
+    "*/adapters/windows.py",
+    "*/app/main.py",
+    "*/app/single_instance.py",
+    "*/app/tray.py",
+]
 
 [tool.coverage.report]
 # Script entry points only run when a file is executed directly.
