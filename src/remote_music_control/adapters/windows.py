@@ -66,10 +66,11 @@ STATUS_FROM_SMTC = {
 SESSION_GAP_GRACE_SECONDS = 2.0
 SESSION_WAIT_POLL_SECONDS = 0.1
 
-# After a skip, the new track takes ~1 s to appear (see the gap above). Skip
-# commands wait up to this long for it, so whoever reads the state right after
-# "next" sees the new track rather than the old one.
-SKIP_SETTLE_TIMEOUT_SECONDS = 2.0
+# Chrome applies a command at once but publishes the result later: ~0.15–0.4 s
+# for play/pause, ~1 s for a skip (the gap above). Transport commands wait up to
+# this long for their effect to become readable, so whoever reads the state
+# right after a command sees the new state rather than the old one.
+COMMAND_SETTLE_TIMEOUT_SECONDS = 2.0
 
 
 class WindowsMediaController(MediaController):
@@ -165,38 +166,44 @@ class WindowsMediaController(MediaController):
 
     async def play(self) -> None:
         await self._send("play", lambda session: session.try_play_async())
+        await self._wait_until(lambda now: now.status == PlaybackStatus.PLAYING)
 
     async def pause(self) -> None:
         await self._send("pause", lambda session: session.try_pause_async())
+        await self._wait_until(lambda now: now.status == PlaybackStatus.PAUSED)
 
     async def toggle_play_pause(self) -> None:
+        before = await self.now_playing()
+        was_playing = before is not None and before.status == PlaybackStatus.PLAYING
         await self._send("play/pause", lambda session: session.try_toggle_play_pause_async())
+        expected = PlaybackStatus.PAUSED if was_playing else PlaybackStatus.PLAYING
+        await self._wait_until(lambda now: now.status == expected)
 
     async def next_track(self) -> None:
         before = await self.now_playing()
         await self._send("next", lambda session: session.try_skip_next_async())
-        await self._wait_for_track_change(before)
+        await self._wait_until(lambda now: _is_different_track(now, before))
 
     async def previous_track(self) -> None:
         before = await self.now_playing()
         await self._send("previous", lambda session: session.try_skip_previous_async())
-        await self._wait_for_track_change(before)
+        # "Previous" late in a song restarts the same track, so there may be no
+        # change to see; the timeout ends the wait in that case.
+        await self._wait_until(lambda now: _is_different_track(now, before))
 
-    async def _wait_for_track_change(self, before: NowPlaying | None) -> None:
-        """Return once the playing track differs from `before`, or after a timeout.
+    async def _wait_until(self, condition: Callable[[NowPlaying], bool]) -> None:
+        """Return once `condition(now_playing)` holds, or after a timeout.
 
-        The timeout matters: "previous" late in a song restarts the same track,
-        so there may be no change to wait for. The command already succeeded;
-        this only delays the reply until the new state is readable.
+        The command has already been accepted when this runs; waiting only
+        delays the reply until the new state is readable. Timing out is not an
+        error — the reply then simply carries on with whatever state exists.
         """
-        deadline = time.monotonic() + SKIP_SETTLE_TIMEOUT_SECONDS
+        deadline = time.monotonic() + COMMAND_SETTLE_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
+            now = await self.now_playing()
+            if now is None or condition(now):
+                return
             await asyncio.sleep(SESSION_WAIT_POLL_SECONDS)
-            current = await self.now_playing()
-            if before is None or current is None:
-                return
-            if (current.title, current.artist) != (before.title, before.artist):
-                return
 
     # --- Volume ----------------------------------------------------------------
     #
@@ -250,3 +257,7 @@ class WindowsMediaController(MediaController):
             return self._last_now_playing
         self._last_now_playing = None
         return None
+
+
+def _is_different_track(now: NowPlaying, before: NowPlaying | None) -> bool:
+    return before is None or (now.title, now.artist) != (before.title, before.artist)

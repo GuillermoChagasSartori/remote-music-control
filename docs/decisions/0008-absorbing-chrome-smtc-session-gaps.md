@@ -34,16 +34,21 @@ above it unaware of the quirk:
    before raising `NoMediaSessionError`.
 2. **Volume uses only the audio session.** Chrome's Core Audio session survives
    the gap, so volume calls no longer depend on the SMTC session.
-3. **Skips settle before returning.** `next_track()` / `previous_track()` wait
-   up to 2 s for the new track to be readable, so a client reading state right
-   after the command sees the new track.
+3. **Commands settle before returning.** Chrome applies a command at once but
+   publishes the result later: ~0.15–0.4 s for play/pause, ~1 s for a skip.
+   Every transport command waits (up to 2 s) until its effect is readable —
+   `play` until playing, `pause` until paused, `toggle` until the opposite
+   status, `next`/`previous` until a different track — so a client reading
+   state right after the command sees the new state. (Found when `music pause`
+   printed ▶ because it read the state before Chrome had published it.)
 
 ## Consequences
 
 - No flicker in the UI and no spurious 409s during skips (verified live).
 - Closing the browser is reported up to 2 s late. Acceptable.
-- `POST /api/next` takes about 1 s to answer instead of ~50 ms. The skip itself
-  is sent immediately, so the sound changes just as fast; only the reply waits.
+- Commands answer later than before: ~0.2–0.4 s for play/pause, ~1 s for a
+  skip. The command itself is sent immediately, so the sound changes just as
+  fast; only the reply waits.
 - "Previous" late in a song restarts the same track, so there is no change to
   detect and the reply waits the full 2 s.
 - The 2 s values are based on measurements of one Chrome version; they are
