@@ -98,10 +98,14 @@ function getQueue() {
     } catch {
       // Store not reachable: treat everything as queue rather than failing.
     }
-    // Only rendered items that carry their data; jumpTo() uses the same filter,
-    // so an index means the same item in both.
+    // Only rendered items that carry their data, and not the hidden
+    // "counterpart" of a song: YouTube Music renders each queue position with
+    // both its song and its music-video version (#primary-renderer and
+    // #counterpart-renderer) and shows one. The hidden one even keeps a stale
+    // "selected" attribute. jumpTo() uses the same filter, so an index means
+    // the same item in both.
     const items = [...document.querySelectorAll("ytmusic-player-queue ytmusic-player-queue-item")]
-      .filter((element) => element.data?.videoId)
+      .filter((element) => element.data?.videoId && !element.closest("#counterpart-renderer"))
       .map((element, index) => ({
         video_id: element.data.videoId,
         title: text(element.data.title) || "(untitled)",
@@ -118,8 +122,9 @@ function getQueue() {
 
 function jumpTo(index) {
   try {
+    // The same filter as getQueue(): skip the hidden counterpart versions.
     const elements = [...document.querySelectorAll("ytmusic-player-queue ytmusic-player-queue-item")]
-      .filter((element) => element.data?.videoId);
+      .filter((element) => element.data?.videoId && !element.closest("#counterpart-renderer"));
     const element = elements[index];
     if (!element) {
       return { ok: false, kind: "not_found", message: `there is no queue item ${index}` };
