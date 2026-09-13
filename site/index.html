@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remote Music Control — Controle o YouTube Music do seu PC pelo celular</title>
+<meta name="description" content="Controle o YouTube Music tocando no seu PC Windows a partir do celular ou de qualquer dispositivo na sua rede local. Grátis, open source e licenciado sob MIT.">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Remote Music Control">
+<meta property="og:description" content="Controle o YouTube Music do seu PC Windows a partir do celular, na sua rede local. Grátis e open source.">
+<meta property="og:image" content="web-ui.png">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff2e63'/%3E%3Cstop offset='1' stop-color='%23c026d3'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M13 22a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0 0V9l10-2v11' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="container hero-inner">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+        <defs>
+          <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff2e63"/>
+            <stop offset="1" stop-color="#c026d3"/>
+          </linearGradient>
+        </defs>
+        <rect width="32" height="32" rx="8" fill="url(#logo-g)"/>
+        <path d="M13 22a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0 0V9l10-2v11" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Remote Music Control</span>
+    </div>
+
+    <h1>Controle o YouTube Music do seu PC, de qualquer lugar da casa</h1>
+    <p class="subtitle">
+      Toque, pause, pule faixas e ajuste o volume do YouTube Music rodando no seu PC Windows —
+      direto do celular, notebook ou terminal, na sua rede Wi-Fi.
+    </p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/GuillermoChagasSartori/remote-music-control/releases/latest">
+        Baixar para Windows
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/GuillermoChagasSartori/remote-music-control">
+        Ver no GitHub
+      </a>
+    </div>
+
+    <p class="fine-print">Windows 10/11 · Grátis e open source · MIT</p>
+  </div>
+</header>
+
+<main>
+
+  <section class="container reveal" aria-label="Captura de tela da interface web">
+    <div class="screenshot-frame">
+      <div class="frame-bar" aria-hidden="true">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+      <img
+        src="web-ui.png"
+        alt="Interface web do Remote Music Control mostrando a faixa em reprodução e os controles de play, pause, próxima faixa e volume"
+        width="1200" height="750" loading="lazy">
+    </div>
+  </section>
+
+  <section class="container section reveal" aria-labelledby="how-title">
+    <h2 id="how-title">Como funciona</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect x="7" y="9" width="34" height="22" rx="3" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M17 39h14M24 31v8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M18 20l4 4 8-8" stroke="url(#step-g1)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="step-g1" x1="18" y1="16" x2="30" y2="24">
+                <stop stop-color="#ff2e63"/><stop offset="1" stop-color="#c026d3"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h3>1. Instale no PC do Windows</h3>
+        <p>Onde a música toca. A instalação leva menos de um minuto.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect x="8" y="8" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+            <rect x="28" y="8" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+            <rect x="8" y="28" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="2.5"/>
+            <rect x="12" y="12" width="4" height="4" fill="currentColor"/>
+            <rect x="32" y="12" width="4" height="4" fill="currentColor"/>
+            <rect x="12" y="32" width="4" height="4" fill="currentColor"/>
+            <path d="M28 28h5v5M40 28v5h-5M28 40h12v-7" stroke="url(#step-g2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="step-g2" x1="28" y1="28" x2="40" y2="40">
+                <stop stop-color="#ff2e63"/><stop offset="1" stop-color="#c026d3"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h3>2. Escaneie o QR Code</h3>
+        <p>Com o celular, para parear com o PC em segundos.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect x="16" y="6" width="16" height="30" rx="3" stroke="currentColor" stroke-width="2.5"/>
+            <circle cx="24" cy="31" r="1.6" fill="currentColor"/>
+            <path d="M24 42c-7 0-12-5-12-12M24 42c7 0 12-5 12-12" stroke="url(#step-g3)" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M24 42v-4" stroke="url(#step-g3)" stroke-width="2.5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="step-g3" x1="12" y1="30" x2="36" y2="42">
+                <stop stop-color="#ff2e63"/><stop offset="1" stop-color="#c026d3"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h3>3. Controle de qualquer lugar</h3>
+        <p>Da casa, direto pelo navegador — sem precisar chegar perto do PC.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container section reveal" aria-labelledby="features-title">
+    <h2 id="features-title">Recursos</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Play/pause e pular faixas</h3>
+        <p>Os controles essenciais, sempre à mão.</p>
+      </div>
+      <div class="card">
+        <h3>Controle de volume e mudo</h3>
+        <p>Ajuste fino sem precisar levantar do sofá.</p>
+      </div>
+      <div class="card">
+        <h3>Mostra a faixa atual</h3>
+        <p>Veja o que está tocando em tempo real.</p>
+      </div>
+      <div class="card">
+        <h3>Celular, navegador e CLI</h3>
+        <p>Funciona no navegador de qualquer aparelho ou pelo terminal.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container section reveal" aria-labelledby="security-title">
+    <h2 id="security-title" class="sr-only">Segurança</h2>
+    <div class="security-note">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M9.5 12l1.8 1.8L14.8 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p>
+        Funciona apenas na sua rede local (o servidor não é exposto para a internet) e todos os
+        comandos exigem um token de acesso obtido no pareamento por QR Code.
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <a href="https://github.com/GuillermoChagasSartori/remote-music-control">github.com/GuillermoChagasSartori/remote-music-control</a>
+    <span class="footer-sep">·</span>
+    <span>Licença MIT</span>
+    <span class="footer-sep">·</span>
+    <span>Criado por Guillermo Chagas Sartori</span>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
