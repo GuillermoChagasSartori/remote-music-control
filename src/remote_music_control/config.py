@@ -104,8 +104,13 @@ def read_config_file(path: Path) -> dict[str, str]:
 
 
 def load_values(environ: Mapping[str, str] = os.environ) -> dict[str, str]:
-    """Merge the config file and the environment; the environment wins."""
-    return {**read_config_file(default_config_path(environ)), **environ}
+    """Merge the config file and the environment; the environment wins.
+
+    An environment variable set to an empty string counts as unset, so a stray
+    `RMC_TOKEN=` in a shell profile can't silently hide the file's real token.
+    """
+    set_in_environment = {key: value for key, value in environ.items() if value.strip()}
+    return {**read_config_file(default_config_path(environ)), **set_in_environment}
 
 
 def create_config_file(path: Path, lines: list[str]) -> None:
