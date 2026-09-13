@@ -17,3 +17,4 @@ a decision is reversed, a new ADR supersedes the old one.
 | [0008](0008-absorbing-chrome-smtc-session-gaps.md) | Absorbing Chrome's SMTC session gap in the Windows adapter | Accepted |
 | [0009](0009-bearer-token-on-the-lan.md) | Shared bearer token for LAN access | Accepted |
 | [0010](0010-httpx2-for-the-cli-and-tests.md) | httpx2 instead of httpx for the CLI and tests | Accepted |
+| [0011](0011-logon-task-with-watchdog-trigger.md) | Logon task with a clock-based watchdog trigger | Accepted |

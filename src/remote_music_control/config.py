@@ -57,6 +57,7 @@ class ServerSettings:
     player_apps: tuple[str, ...]
     token: str
     log_level: str
+    log_file: Path | None  # None: log to stderr (see server.log_destination)
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,11 @@ def default_config_path(environ: Mapping[str, str] = os.environ) -> Path:
     else:
         base = Path(environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     return base / "remote-music-control" / "config.env"
+
+
+def default_log_path(environ: Mapping[str, str] = os.environ) -> Path:
+    """Where the server logs when it has no console: next to the config file."""
+    return default_config_path(environ).parent / "server.log"
 
 
 def read_config_file(path: Path) -> dict[str, str]:
@@ -179,6 +185,8 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
             f"RMC_LOG_LEVEL={log_level!r} is not valid; choose one of: {', '.join(LOG_LEVEL_CHOICES)}"
         )
 
+    raw_log_file = values.get("RMC_LOG_FILE", "").strip()
+
     return ServerSettings(
         controller=controller,
         host=values.get("RMC_HOST", DEFAULT_HOST).strip(),
@@ -186,6 +194,7 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
         player_apps=player_apps,
         token=token,
         log_level=log_level,
+        log_file=Path(raw_log_file) if raw_log_file else None,
     )
 
 

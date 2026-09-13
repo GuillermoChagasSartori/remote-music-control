@@ -2,6 +2,7 @@
 
 import socket
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +19,7 @@ def settings(controller: str) -> ServerSettings:
         player_apps=("chrome.exe",),
         token="t" * 40,
         log_level="INFO",
+        log_file=None,
     )
 
 
@@ -85,6 +87,7 @@ def test_main_starts_the_server_when_configured(monkeypatch):
     monkeypatch.setenv("RMC_TOKEN", "t" * 40)
     started = []
     monkeypatch.setattr(server, "run", started.append)
+    monkeypatch.setattr(server, "configure_logging", lambda level, log_file: None)
 
     assert server.main([]) == 0
     assert started[0].controller == "fake"
@@ -93,3 +96,42 @@ def test_main_starts_the_server_when_configured(monkeypatch):
 def test_unknown_controller_is_a_configuration_error():
     with pytest.raises(server.ConfigError):
         server.build_controller(settings("vlc"))
+
+
+# --- Running without a console (pythonw.exe, as the logon task does) -------------------
+
+
+def test_logs_go_to_stderr_when_there_is_a_console():
+    assert server.log_destination(None, stderr=sys.stderr) is None
+
+
+def test_configured_log_file_is_used(tmp_path):
+    assert server.log_destination(tmp_path / "x.log", stderr=sys.stderr) == tmp_path / "x.log"
+
+
+def test_logs_go_to_the_default_file_when_there_is_no_console(isolated_environment):
+    # Under pythonw.exe sys.stderr is None; printing to it would crash.
+    assert server.log_destination(None, stderr=None) == isolated_environment.parent / "server.log"
+
+
+def test_startup_error_without_a_console_is_written_to_the_log_file(isolated_environment, monkeypatch):
+    monkeypatch.setattr(sys, "stderr", None)
+
+    assert server.main([]) == 1  # no token configured
+
+    log = (isolated_environment.parent / "server.log").read_text(encoding="utf-8")
+    assert "configuration error: no RMC_TOKEN" in log
+
+
+def test_unexpected_crash_exits_with_failure_so_the_task_restarts_it(monkeypatch, caplog):
+    monkeypatch.setenv("RMC_TOKEN", "t" * 40)
+    monkeypatch.setattr(server, "configure_logging", lambda level, log_file: None)
+
+    def crash(settings):
+        raise RuntimeError("port already in use")
+
+    monkeypatch.setattr(server, "run", crash)
+
+    assert server.main([]) == 1
+    assert "server stopped because of an unexpected error" in caplog.text
+    assert "port already in use" in caplog.text

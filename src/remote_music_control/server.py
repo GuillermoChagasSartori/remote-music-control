@@ -9,6 +9,8 @@ import argparse
 import logging
 import socket
 import sys
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import uvicorn
 
@@ -19,6 +21,7 @@ from .config import (
     ServerSettings,
     create_config_file,
     default_config_path,
+    default_log_path,
     generate_token,
     load_server_settings,
 )
@@ -45,20 +48,62 @@ def build_controller(settings: ServerSettings) -> MediaController:
     raise ConfigError(f"unknown controller {settings.controller!r}")
 
 
-def configure_logging(level: str) -> None:
-    # When stderr is redirected to a file on Windows, Python defaults to the
-    # legacy cp1252 encoding and crashes on track titles like "花の専門店".
-    # Forcing UTF-8 makes logging safe wherever the output goes.
-    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-        stream=sys.stderr,
-    )
+LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
+# A rotating log starts a new file when it reaches this size and keeps this
+# many old ones (server.log.1 … .3), so it can never fill the disk.
+LOG_FILE_MAX_BYTES = 1_000_000
+LOG_FILE_BACKUPS = 3
+
+
+def log_destination(configured_file: Path | None, stderr) -> Path | None:
+    """Decide where logs go: a file path, or None for stderr.
+
+    Started at logon, the server runs under pythonw.exe — the Windows Python
+    that opens no console window — and there `sys.stderr` is None. Logging (or
+    printing) to it would crash, so without an explicit RMC_LOG_FILE the log
+    then goes to the default file next to the config file.
+    """
+    if configured_file is not None:
+        return configured_file
+    if stderr is None:
+        return default_log_path()
+    return None
+
+
+def configure_logging(level: str, log_file: Path | None) -> None:
+    destination = log_destination(log_file, sys.stderr)
+    if destination is None:
+        # When stderr is redirected to a file on Windows, Python defaults to the
+        # legacy cp1252 encoding and crashes on track titles like "花の専門店".
+        # Forcing UTF-8 makes logging safe wherever the output goes.
+        sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+        handler: logging.Handler = logging.StreamHandler(sys.stderr)
+    else:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(
+            destination, maxBytes=LOG_FILE_MAX_BYTES, backupCount=LOG_FILE_BACKUPS, encoding="utf-8"
+        )
+    logging.basicConfig(level=level, format=LOG_FORMAT, handlers=[handler])
+
+
+def report_startup_error(message: str) -> None:
+    """Show an error that happens before logging is set up.
+
+    On a console it is printed. Under pythonw there is nowhere to print, so it
+    is appended to the default log file — otherwise a broken config file would
+    make the server at logon fail with no trace at all.
+    """
+    line = f"music-server: {message}"
+    if sys.stderr is not None:
+        print(line, file=sys.stderr)
+        return
+    path = default_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as log:
+        log.write(line + "\n")
 
 
 def run(settings: ServerSettings) -> None:
-    configure_logging(settings.log_level)
     controller = build_controller(settings)
     app = create_app(controller, token=settings.token)
     logger.info(
@@ -69,7 +114,7 @@ def run(settings: ServerSettings) -> None:
         host=settings.host,
         port=settings.port,
         # log_config=None: don't let uvicorn install its own log handlers, so
-        # its messages go through the format configured above.
+        # its messages go through the handler configured above.
         log_config=None,
         # Access logs off: the web page polls every second, which would write
         # ~86,000 lines a day. api.py logs the requests that change something.
@@ -115,6 +160,8 @@ def init() -> int:
             "# RMC_PORT=8000",
             "# RMC_PLAYER_APPS=chrome.exe,firefox.exe",
             "# RMC_LOG_LEVEL=INFO",
+            "# Log file; default is the console, or server.log next to this file when there is none:",
+            "# RMC_LOG_FILE=C:\\path\\to\\server.log",
         ],
     )
     print(f"Created {path}")
@@ -144,10 +191,21 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         settings = load_server_settings()
+    except ConfigError as error:
+        # A config mistake gets a one-line message, not a Python traceback.
+        report_startup_error(f"configuration error: {error}")
+        return 1
+
+    configure_logging(settings.log_level, settings.log_file)
+    try:
         run(settings)
     except (ConfigError, ImportError) as error:
-        # A config mistake gets a one-line message, not a Python traceback.
-        print(f"music-server: configuration error: {error}", file=sys.stderr)
+        logger.error("configuration error: %s", error)
+        return 1
+    except Exception:
+        # Anything unforeseen: record it, and exit with a failure code so the
+        # logon task's "restart on failure" setting starts the server again.
+        logger.exception("server stopped because of an unexpected error")
         return 1
     return 0
 

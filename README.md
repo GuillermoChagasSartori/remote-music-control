@@ -6,10 +6,10 @@ Control YouTube Music playing in a browser on a Windows PC — play/pause, skip,
 volume, now-playing — from a web page or a CLI on any other device on the same
 home network.
 
-> **Status:** early development (Phase 6). Works end to end over the LAN with
-> token authentication, against YouTube Music in Chrome or Firefox on Windows,
-> with automated tests on Linux and Windows. Start-at-logon packaging (Phase 7)
-> is next.
+> **Status:** Phases 0–7 complete. Works end to end over the LAN with token
+> authentication, against YouTube Music in Chrome or Firefox on Windows; the
+> server starts at logon and restarts itself after a crash. Automated tests run
+> on Linux and Windows.
 
 <p align="center">
   <img src="docs/images/web-ui.png" alt="Web UI showing the current track, playback buttons and volume controls" width="320">
@@ -52,6 +52,7 @@ src/remote_music_control/   application package
   server.py                 `music-server`: wiring, logging, `init`
   cli.py                    `music` command-line client
   web/                      the web page: index.html, style.css, app.js
+scripts/windows/            install/uninstall the start-at-logon task
 tests/
   unit/                     one module at a time (fake player, config, CLI parsing, server)
   integration/              the real app over HTTP, and the CLI against it, using the fake
@@ -90,28 +91,46 @@ uv sync          # creates .venv; Windows-only packages install only on Windows
    RMC_HOST=0.0.0.0
    ```
 
-2. **Allow the port on the local network only** (PowerShell as administrator):
+2. **Install the start-at-logon task.** In PowerShell **as administrator** the
+   first time (so it can also create the firewall rule), from the repository
+   folder:
 
    ```powershell
-   New-NetFirewallRule -DisplayName "Remote Music Control (TCP 8000, LAN only)" `
-     -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8000 `
-     -Profile Private -RemoteAddress LocalSubnet
+   powershell -ExecutionPolicy Bypass -File scripts\windows\install-autostart.ps1
    ```
 
-   The Wi-Fi/Ethernet connection must be set to the *Private* network profile.
+   This registers a Task Scheduler task that starts the server when you log
+   on — with no console window — and checks every minute, starting it again
+   if it has stopped. It starts the server right away and confirms it answers.
+   It also creates a firewall rule allowing TCP 8000 only from the local subnet
+   on *Private* networks, so the Wi-Fi/Ethernet connection must use the
+   *Private* network profile. Re-running the script is safe.
 
-3. **Start the server from a terminal in the desktop session** (not over SSH),
-   with YouTube Music open in Chrome or Firefox:
+   Why a logon task and not a Windows service: Windows only exposes media
+   sessions and per-app audio inside the logged-in user's session; a service
+   (or anything started over SSH) gets "access denied"
+   ([ADR 0003](docs/decisions/0003-logon-task-instead-of-windows-service.md),
+   [ADR 0011](docs/decisions/0011-logon-task-with-watchdog-trigger.md)).
 
-   ```powershell
-   uv run music-server
-   ```
+3. **Open YouTube Music** in Chrome or Firefox.
 
-   The server must run in the logged-in user's session: Windows only exposes
-   media sessions and per-app audio there. A process started over SSH or as a
-   Windows service gets "access denied"
-   ([ADR 0003](docs/decisions/0003-logon-task-instead-of-windows-service.md)).
-   Automatic start at logon comes in Phase 7.
+To stop and remove the task:
+`powershell -ExecutionPolicy Bypass -File scripts\windows\uninstall-autostart.ps1`
+(the config file, log and firewall rule are kept).
+
+To run the server by hand instead (for development), stop the task and run
+`uv run music-server` from a terminal on the Windows desktop.
+
+**Updating** the Windows PC to a newer version: in the repository folder run
+`git pull`, `uv sync`, then the install script again (it restarts the server).
+
+**Surviving a reboot:** the task starts at logon, so after a reboot nothing
+runs until someone logs on. For a studio PC that should recover unattended,
+enable Windows automatic sign-in — preferably with Microsoft's Sysinternals
+[Autologon](https://learn.microsoft.com/sysinternals/downloads/autologon),
+which stores the password encrypted rather than in plain text in the registry.
+This lets anyone who can switch the PC on use your account, so it is a
+deliberate trade-off.
 
 ### On a client
 
@@ -235,6 +254,7 @@ Settings come from environment variables, then the config file, then defaults
 | `RMC_PORT` | server | `8000` | Port to listen on |
 | `RMC_PLAYER_APPS` | server | `chrome.exe,firefox.exe` | Windows adapter: executables whose media and volume are controlled |
 | `RMC_LOG_LEVEL` | server | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
+| `RMC_LOG_FILE` | server | stderr, or `server.log` next to the config file without a console | Write the log to this file (rotated at 1 MB) |
 | `RMC_SERVER_URL` | CLI | `http://127.0.0.1:8000` | Where the CLI sends requests (`--url` overrides) |
 | `RMC_CONFIG_FILE` | both | see above | Use a different config file |
 
@@ -250,9 +270,18 @@ threat model: [ADR 0009](docs/decisions/0009-bearer-token-on-the-lan.md).
 
 ## Logging
 
-The server logs to stderr: startup, every command (`POST /api/next -> 204 in
-950 ms (from 192.168.1.20)`), rejected tokens, player failures and unexpected
-errors with tracebacks. Polling requests are not logged.
+The server logs startup, every command (`POST /api/next -> 204 in 950 ms (from
+192.168.1.20)`), rejected tokens, player failures and unexpected errors with
+tracebacks. Polling requests are not logged.
+
+- Started from a terminal: to the terminal (stderr).
+- Started by the logon task (no console): to `server.log` next to the config
+  file, e.g. `%APPDATA%\remote-music-control\server.log`, rotated at 1 MB with
+  3 old files kept.
+- `RMC_LOG_FILE` sends the log to a specific file in either case.
+
+On Windows, follow it live with
+`Get-Content "$env:APPDATA\remote-music-control\server.log" -Wait -Tail 20`.
 
 ## License
 

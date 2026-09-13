@@ -10,9 +10,9 @@ dependencies, or updating Chrome/Firefox significantly. It takes about 10 minute
 
 ## Setup
 
-1. The server runs **in the desktop session** (a terminal on the Windows
-   desktop, or the logon task) with `RMC_CONTROLLER=windows` — not over SSH,
-   where Windows denies access to media sessions.
+1. The server runs **in the desktop session** — normally the logon task from
+   `scripts\windows\install-autostart.ps1` — with `RMC_CONTROLLER=windows`.
+   Not over SSH, where Windows denies access to media sessions.
 2. YouTube Music is playing in Chrome.
 3. On a client machine, `music health` prints `server ok` and `token accepted`.
 
@@ -36,10 +36,13 @@ from before the command.
 | 10 | Close the browser completely, wait 5 s | `music now` → "nothing playing"; `music play` → HTTP 409 |
 | 11 | Reopen the browser and start YouTube Music | `music now` works again **without restarting the server** |
 | 12 | Repeat 1–8 in **Firefox** (Chrome closed) | Same results; `next` is faster, `prev` may take ~2 s |
-| 13 | Check the server log | Commands logged with client IP; no tracebacks |
+| 13 | Check `%APPDATA%\remote-music-control\server.log` | Commands logged with client IP; no tracebacks |
+| 14 | End the `pythonw.exe` server processes in Task Manager | `music now` fails, then works again within ~1 minute |
+| 15 | Sign out and sign in again (or reboot and sign in) | Server answers shortly after logon, with no window on the desktop |
 
 ## Results log
 
 | Date | Chrome | Firefox | Result | Notes |
 |---|---|---|---|---|
-| 2026-09-13 | ✓ | ✓ | Pass | Found and fixed stale state after play/pause (ADR 0008); Firefox reports "paused" briefly during skips |
+| 2026-09-13 | ✓ | ✓ | Pass (1–13) | Found and fixed stale state after play/pause (ADR 0008); Firefox reports "paused" briefly during skips |
+| 2026-09-13 | ✓ | — | Pass (14) | Watchdog restarted a killed server in 44 s; no duplicate instances. Item 15 pending |

@@ -98,6 +98,12 @@ def test_player_apps_are_split_trimmed_and_lowercased(tmp_path):
     assert settings.player_apps == ("chrome.exe", "msedge.exe")
 
 
+def test_log_file_is_optional(tmp_path):
+    assert load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN)).log_file is None
+    settings = load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_LOG_FILE=str(tmp_path / "s.log")))
+    assert settings.log_file == tmp_path / "s.log"
+
+
 def test_log_level_is_case_insensitive(tmp_path):
     settings = load_server_settings(environment(tmp_path, RMC_TOKEN=GOOD_TOKEN, RMC_LOG_LEVEL="debug"))
     assert settings.log_level == "DEBUG"
