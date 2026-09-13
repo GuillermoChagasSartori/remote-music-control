@@ -14,10 +14,20 @@
 </head>
 <body>
   <!-- data-status drives which icons and styles show; app.js keeps it updated.
-       "connecting" | "playing" | "paused" | "stopped" | "none" (no player open) -->
+       "connecting" | "playing" | "paused" | "stopped" | "none" (no player open)
+       | "locked" (no valid token yet) -->
   <main id="player" class="player" data-status="connecting">
 
     <p id="banner" class="banner" role="alert" hidden></p>
+
+    <!-- Shown instead of the controls when there is no token or it was rejected. -->
+    <form id="token-form" class="token-form" hidden>
+      <label for="token-input">Access token</label>
+      <p class="hint">Paste the token from the server's config file (created by <code>music-server init</code>).</p>
+      <!-- type=password: the token isn't shown on screen or offered by autocomplete. -->
+      <input id="token-input" type="password" autocomplete="off" spellcheck="false" required>
+      <button type="submit">Connect</button>
+    </form>
 
     <!-- aria-live: screen readers announce track changes without focus moving. -->
     <section class="track" aria-live="polite">

@@ -76,6 +76,52 @@ body {
   font-size: 0.9rem;
 }
 
+/* --- Token form (shown while data-status="locked") --- */
+
+.player[data-status="locked"] .track,
+.player[data-status="locked"] .transport,
+.player[data-status="locked"] .volume {
+  display: none;
+}
+
+.token-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.token-form label {
+  font-weight: 600;
+}
+
+.token-form .hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted-text);
+}
+
+.token-form input,
+.token-form button {
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  border-radius: 0.6rem;
+  font: inherit;
+}
+
+.token-form input {
+  border: 1px solid var(--control-hover);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.token-form button {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* --- Track info --- */
 
 .track {

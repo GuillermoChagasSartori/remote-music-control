@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from .config import load_client_settings
+from .config import ConfigError, default_config_path, load_client_settings
 from .media_controller import MAX_VOLUME, MIN_VOLUME
 
 # Generous enough for a slow Wi-Fi hop, short enough that a dead server is
@@ -55,8 +55,10 @@ def format_volume(volume: dict[str, Any]) -> str:
 
 
 def run_health(client: httpx.Client, args: argparse.Namespace) -> None:
-    data = request(client, "GET", "/health")
-    print(f"server ok — controller: {data['controller']}")
+    request(client, "GET", "/health")  # public: is the server up at all?
+    print(f"server ok at {args.url}")
+    request(client, "GET", "/api/state")  # requires the token: is ours accepted?
+    print("token accepted")
 
 
 def run_now(client: httpx.Client, args: argparse.Namespace) -> None:
@@ -174,11 +176,20 @@ def main(argv: list[str] | None = None) -> int:
 
     `argv` defaults to the real command-line arguments; tests can pass a list.
     """
-    settings = load_client_settings()
+    try:
+        settings = load_client_settings()
+    except ConfigError as error:
+        print(f"music: configuration error: {error}", file=sys.stderr)
+        return 1
     args = build_parser(settings.server_url).parse_args(argv)
 
+    # The token comes only from the config file or environment, never from a
+    # command-line option: arguments are visible to other users in process
+    # listings (`ps`) and are saved in shell history.
+    headers = {"Authorization": f"Bearer {settings.token}"} if settings.token else {}
+
     try:
-        with httpx.Client(base_url=args.url, timeout=REQUEST_TIMEOUT_SECONDS) as client:
+        with httpx.Client(base_url=args.url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as client:
             args.handler(client, args)
     # Order matters: specific errors first, the general HTTPError last.
     except httpx.ConnectError:
@@ -188,7 +199,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"music: server at {args.url} did not answer in time", file=sys.stderr)
         return 1
     except httpx.HTTPStatusError as error:
-        print(f"music: {server_error_message(error.response)}", file=sys.stderr)
+        if error.response.status_code == httpx.codes.UNAUTHORIZED:
+            where = "is not set" if settings.token is None else "was rejected by the server"
+            print(
+                f"music: the token {where}. Set RMC_TOKEN in {default_config_path()} "
+                "to the token printed by `music-server init` on the server.",
+                file=sys.stderr,
+            )
+        else:
+            print(f"music: {server_error_message(error.response)}", file=sys.stderr)
         return 1
     except httpx.HTTPError as error:
         print(f"music: request failed: {error}", file=sys.stderr)

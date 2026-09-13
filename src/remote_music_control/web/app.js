@@ -12,6 +12,7 @@ const POLL_INTERVAL_MS = 1000;
 // long, so a poll can't yank the slider back from under their finger.
 const VOLUME_INPUT_GRACE_MS = 1500;
 const MESSAGE_DURATION_MS = 4000;
+const TOKEN_STORAGE_KEY = "remote-music-control.token";
 
 const STATUS_LABELS = { playing: "Playing", paused: "Paused", stopped: "Stopped" };
 const STATUS_SYMBOLS = { playing: "▶", paused: "⏸", stopped: "■" };
@@ -26,6 +27,62 @@ const volumeSlider = document.getElementById("volume");
 const volumeValue = document.getElementById("volume-value");
 const muteButton = document.getElementById("mute");
 const controls = document.querySelectorAll(".control, #volume");
+const tokenForm = document.getElementById("token-form");
+const tokenInput = document.getElementById("token-input");
+
+// --- The access token -----------------------------------------------------
+//
+// The token is kept in localStorage so the browser remembers it between
+// visits, and sent in an Authorization header with every API request.
+//
+// Pairing link: opening http://<server>:8000/#token=<token> stores the token
+// and then removes it from the address bar. The part after "#" (the URL
+// *fragment*) is never sent to the server, so it can't end up in any log.
+
+let token = null;
+
+function loadToken() {
+  const match = location.hash.match(/^#token=(.+)$/);
+  if (match) {
+    saveToken(decodeURIComponent(match[1]));
+    history.replaceState(null, "", location.pathname + location.search);
+    return;
+  }
+  try {
+    token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    token = null;  // storage blocked (e.g. some private modes): ask each visit
+  }
+}
+
+function saveToken(value) {
+  token = value;
+  try {
+    localStorage.setItem(TOKEN_STORAGE_KEY, value);
+  } catch {
+    // Storage blocked: the token still works until the tab is closed.
+  }
+}
+
+function showTokenForm(message) {
+  clearTimeout(pollTimer);  // no point polling without a valid token
+  player.dataset.status = "locked";
+  statusLabel.textContent = "Locked";
+  document.title = "Music";
+  tokenForm.hidden = false;
+  if (message) showBanner(message, "message");
+  tokenInput.focus();
+}
+
+tokenForm.addEventListener("submit", (event) => {
+  event.preventDefault();  // handle it here instead of reloading the page
+  saveToken(tokenInput.value.trim());
+  tokenInput.value = "";
+  tokenForm.hidden = true;
+  hideBanner();
+  player.dataset.status = "connecting";
+  schedulePoll(0);
+});
 
 // --- Talking to the server ------------------------------------------------
 
@@ -37,9 +94,12 @@ class ApiError extends Error {
 }
 
 // The single function that sends HTTP requests. Every call goes through here,
-// so cross-cutting concerns (the auth token in Phase 5) are added in one place.
+// so cross-cutting concerns like the token are handled in one place.
 async function api(method, path, body) {
   const options = { method, headers: {} };
+  if (token) {
+    options.headers["Authorization"] = `Bearer ${token}`;
+  }
   if (body !== undefined) {
     options.headers["Content-Type"] = "application/json";
     options.body = JSON.stringify(body);
@@ -142,7 +202,9 @@ function hideBanner() {
 
 // One place that decides what the user sees when a request fails.
 function handleError(error) {
-  if (error instanceof ApiError) {
+  if (error instanceof ApiError && error.status === 401) {
+    showTokenForm(token ? "The server rejected the saved token." : null);
+  } else if (error instanceof ApiError) {
     showBanner(error.message, "message");
   } else {
     setConnected(false);  // network failure: fetch() threw
@@ -172,14 +234,15 @@ function schedulePoll(delayMs) {
   pollTimer = setTimeout(async () => {
     await refresh();
     // Page Visibility API: stop polling while the tab is in the background.
-    if (!document.hidden) schedulePoll(POLL_INTERVAL_MS);
+    // Also stop while locked: the token form restarts polling on submit.
+    if (!document.hidden && player.dataset.status !== "locked") schedulePoll(POLL_INTERVAL_MS);
   }, delayMs);
 }
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     clearTimeout(pollTimer);
-  } else {
+  } else if (player.dataset.status !== "locked") {
     schedulePoll(0);  // came back: refresh immediately
   }
 });
@@ -254,4 +317,9 @@ async function sendPendingVolume() {
 // --- Start ------------------------------------------------------------------
 
 setControlsEnabled(false);
-schedulePoll(0);
+loadToken();
+if (token) {
+  schedulePoll(0);
+} else {
+  showTokenForm();
+}
