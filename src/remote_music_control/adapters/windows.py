@@ -21,10 +21,16 @@ import sys
 if sys.platform != "win32":
     raise ImportError("the Windows media adapter can only be used on Windows")
 
-# COM (the Windows component system under both pywinrt and pycaw) requires each
-# thread to choose a threading model. pywinrt uses the multi-threaded apartment;
-# comtypes (imported by pycaw) reads this flag on import and would otherwise ask
-# for the single-threaded one. It must be set before pycaw is imported.
+# COM (the Windows component system under both pywinrt and pycaw) makes each
+# thread join an "apartment" that decides which threads may use its objects.
+# comtypes (imported by pycaw) reads this flag on import; without it, it puts
+# the main thread in a single-threaded apartment (STA), where COM objects may
+# only be used by the thread that created them. 0 selects the multi-threaded
+# apartment (MTA), where any thread may use them.
+# Measured on the studio PC: SMTC and pycaw both work in either apartment, since
+# the server calls them only from its main thread. MTA is a precaution for
+# later: it lets volume calls move to a worker thread (docs/decisions/0005)
+# without breaking. It must be set before pycaw is imported.
 sys.coinit_flags = 0  # 0 = COINIT_MULTITHREADED
 
 import asyncio  # noqa: E402  (imports after the flag, on purpose)
@@ -234,9 +240,11 @@ class WindowsMediaController(MediaController):
     # pycaw calls are synchronous, but they are fast local calls, so running
     # them directly inside async methods is fine (docs/decisions/0005).
     #
-    # Volume depends only on the browser's *audio* session, not the SMTC one:
-    # the audio session survives track changes, so volume keeps working during
-    # the SMTC gap described at the top of this file.
+    # Volume comes from the browser's *audio* session, which survives track
+    # changes, so volume keeps working during the SMTC gap described at the top
+    # of this file. The media session is consulted only when there is no audio
+    # session, to tell "paused for a while" from "closed" (see
+    # _remembered_while_paused).
 
     async def get_volume(self) -> int:
         controls = self._audio_controls()
