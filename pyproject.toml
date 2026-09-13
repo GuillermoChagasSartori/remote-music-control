@@ -1,6 +1,6 @@
 [project]
 name = "remote-music-control"
-version = "0.1.0"
+version = "0.9.0"
 description = "Control YouTube Music playing on a Windows PC from any browser or terminal on the same LAN."
 readme = "README.md"
 license = "MIT"
@@ -52,6 +52,10 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",      # test runner: plain `assert`, fixtures, clear failure output
     "pytest-cov>=7.1.0",  # coverage report: which lines the tests never execute
+]
+# Tools for building the Windows installer (packaging/build.ps1): `uv sync --group build`.
+build = [
+    "pyinstaller>=6.22.3 ; sys_platform == 'win32'",  # bundles Python and the app into a folder that runs without Python installed
 ]
 
 [tool.pytest.ini_options]

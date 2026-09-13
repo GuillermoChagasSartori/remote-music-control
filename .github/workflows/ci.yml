@@ -9,6 +9,8 @@ name: CI
 on:
   push:
   pull_request:
+  # Also startable by hand from the Actions tab (e.g. to build the installer).
+  workflow_dispatch:
 
 # Least privilege: the workflow only needs to read the code.
 permissions:
@@ -52,3 +54,54 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  installer:
+    name: Windows installer
+    # Only after the tests pass on both systems.
+    needs: test
+    # Built for main, for version tags (v1.2.3) and on request — not for every
+    # branch push, since it takes a few minutes.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    permissions:
+      # Write access only here, and only used on a version tag: to publish
+      # the installer as a GitHub Release.
+      contents: write
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Inno Setup
+        run: powershell -ExecutionPolicy Bypass -File packaging\install-inno-setup.ps1
+
+      # The same script as on a developer PC: PyInstaller, then Inno Setup.
+      - name: Build the installer
+        run: powershell -ExecutionPolicy Bypass -File packaging\build.ps1
+
+      # Downloadable from the workflow run's page for 30 days.
+      - name: Keep the installer as a build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: RemoteMusicControl-Setup
+          path: dist/RemoteMusicControl-Setup-*.exe
+          retention-days: 30
+          if-no-files-found: error
+
+      # On a version tag, publish it where anyone can download it without a
+      # GitHub account: a GitHub Release. `gh` is preinstalled on the runner.
+      - name: Publish a GitHub Release (version tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # PowerShell (the runner's default shell) doesn't expand * for other
+        # programs, so the file is looked up first.
+        run: |
+          $installer = (Get-Item dist\RemoteMusicControl-Setup-*.exe).FullName
+          gh release create "${{ github.ref_name }}" $installer --title "Remote Music Control ${{ github.ref_name }}" --generate-notes

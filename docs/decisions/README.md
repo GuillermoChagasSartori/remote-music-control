@@ -21,3 +21,4 @@ a decision is reversed, a new ADR supersedes the old one.
 | [0012](0012-pairing-page-on-the-server-pc.md) | Pairing page served only to the server PC | Accepted |
 | [0013](0013-chrome-extension-for-search-and-queue.md) | A Chrome extension for search and the queue | Superseded by 0014 |
 | [0014](0014-own-player-window-instead-of-the-browser.md) | The app shows YouTube Music in its own window | Accepted |
+| [0015](0015-windows-installer.md) | A Windows installer built with PyInstaller and Inno Setup | Accepted |
