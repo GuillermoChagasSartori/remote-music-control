@@ -1,5 +1,7 @@
 """Unit tests for the server entry point: adapter selection, `init`, startup errors."""
 
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -127,3 +129,74 @@ def test_unexpected_crash_exits_with_failure_so_the_task_restarts_it(monkeypatch
     assert server.main([]) == 1
     assert "server stopped because of an unexpected error" in caplog.text
     assert "port already in use" in caplog.text
+
+
+# --- The rotating log file ------------------------------------------------------------
+
+
+def write_log_lines(path, count, max_bytes=2000):
+    handler = server.LockTolerantRotatingFileHandler(path, max_bytes=max_bytes, backup_count=3)
+    log = logging.getLogger(f"rotation-test-{path.name}")
+    log.propagate = False  # keep these lines out of pytest's own log capture
+    log.addHandler(handler)
+    log.setLevel(logging.INFO)
+    try:
+        for number in range(count):
+            log.info("line %04d %s", number, "x" * 40)
+    finally:
+        log.removeHandler(handler)
+        handler.close()
+
+
+def all_lines(folder):
+    return [line for file in sorted(folder.glob("server.log*")) for line in file.read_text().splitlines()]
+
+
+def test_log_rotates_into_numbered_backups(tmp_path):
+    write_log_lines(tmp_path / "server.log", 400)
+    names = sorted(p.name for p in tmp_path.iterdir())
+    assert names == ["server.log", "server.log.1", "server.log.2", "server.log.3"]
+
+
+def test_locked_log_loses_no_lines_and_keeps_its_backups(tmp_path, monkeypatch):
+    # Existing backups that a failed rotation must not destroy.
+    for number in (1, 2, 3):
+        (tmp_path / f"server.log.{number}").write_text(f"backup {number}\n")
+
+    # Simulate Windows refusing to rename server.log while another program
+    # has it open (e.g. Get-Content -Wait).
+    real_replace = os.replace
+
+    def locked_replace(source, destination):
+        if str(source).endswith("server.log"):
+            raise PermissionError("The file is being used by another process")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(server.os, "replace", locked_replace)
+
+    write_log_lines(tmp_path / "server.log", 400)
+
+    lines = all_lines(tmp_path)
+    assert sum(line.startswith("line ") for line in lines) == 400  # nothing lost
+    for number in (1, 2, 3):  # backups untouched
+        assert (tmp_path / f"server.log.{number}").read_text() == f"backup {number}\n"
+
+
+def test_rotation_resumes_once_the_lock_is_released(tmp_path, monkeypatch):
+    real_replace = os.replace
+    locked = {"value": True}
+
+    def sometimes_locked(source, destination):
+        if locked["value"] and str(source).endswith("server.log"):
+            raise PermissionError("in use")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(server.os, "replace", sometimes_locked)
+    write_log_lines(tmp_path / "server.log", 200)
+    locked["value"] = False
+    write_log_lines(tmp_path / "server.log", 400)
+
+    # Rotation works again: backups exist, never more than three, and the newest
+    # line is in the current file. (Older lines age out, as rotation intends.)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["server.log", "server.log.1", "server.log.2", "server.log.3"]
+    assert "line 0399" in (tmp_path / "server.log").read_text()

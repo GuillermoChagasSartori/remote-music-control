@@ -7,6 +7,7 @@ abstractions; only here do we decide "use the fake" or "use Windows".
 
 import argparse
 import logging
+import os
 import socket
 import sys
 from logging.handlers import RotatingFileHandler
@@ -61,6 +62,62 @@ LOG_FILE_MAX_BYTES = 1_000_000
 LOG_FILE_BACKUPS = 3
 
 
+class LockTolerantRotatingFileHandler(RotatingFileHandler):
+    """A rotating log file that never loses records when the file is locked.
+
+    Rotating means renaming server.log to server.log.1 (and .1 to .2, and so
+    on) and starting a fresh server.log. On Windows a file can't be renamed
+    while another program has it open — for example `Get-Content -Wait`
+    following the log live, or an antivirus scan. The standard
+    RotatingFileHandler then fails on every record: it drops the record, and
+    because it shifts the backups *before* discovering the rename fails, each
+    attempt also deletes the oldest backup. (Measured on the studio PC: 286 of
+    400 lines lost, and two of three backups gone.)
+
+    This version renames the current log first. If that fails, nothing has been
+    touched yet: it keeps writing to the same file and tries again once the
+    file has grown by another `maxBytes`. Only after the rename succeeds are the
+    backups shifted.
+    """
+
+    def __init__(self, filename: Path, max_bytes: int, backup_count: int) -> None:
+        if backup_count < 1:
+            raise ValueError("backup_count must be at least 1")
+        super().__init__(filename, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
+        # File size at which to try rotating again after a failed attempt.
+        self._next_attempt_size = 0
+
+    def shouldRollover(self, record: logging.LogRecord) -> bool:
+        if not super().shouldRollover(record):
+            return False
+        return self.stream.tell() >= self._next_attempt_size
+
+    def doRollover(self) -> None:
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+
+        in_progress = self.baseFilename + ".rotating"
+        try:
+            # Step 1: move the current log aside. This is the step that fails
+            # while another program holds the file open.
+            os.replace(self.baseFilename, in_progress)
+        except OSError:
+            self.stream = self._open()  # carry on in the same file
+            self._next_attempt_size = self.stream.tell() + self.maxBytes
+            return
+
+        # Step 2: shift the backups (.2 -> .3, .1 -> .2); the oldest is overwritten.
+        for number in range(self.backupCount - 1, 0, -1):
+            older = f"{self.baseFilename}.{number}"
+            if os.path.exists(older):
+                os.replace(older, f"{self.baseFilename}.{number + 1}")
+        os.replace(in_progress, f"{self.baseFilename}.1")
+
+        self._next_attempt_size = 0
+        self.stream = self._open()
+
+
 def log_destination(configured_file: Path | None, stderr) -> Path | None:
     """Decide where logs go: a file path, or None for stderr.
 
@@ -86,8 +143,8 @@ def configure_logging(level: str, log_file: Path | None) -> None:
         handler: logging.Handler = logging.StreamHandler(sys.stderr)
     else:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        handler = RotatingFileHandler(
-            destination, maxBytes=LOG_FILE_MAX_BYTES, backupCount=LOG_FILE_BACKUPS, encoding="utf-8"
+        handler = LockTolerantRotatingFileHandler(
+            destination, max_bytes=LOG_FILE_MAX_BYTES, backup_count=LOG_FILE_BACKUPS
         )
     logging.basicConfig(level=level, format=LOG_FORMAT, handlers=[handler])
 
