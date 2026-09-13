@@ -12,6 +12,17 @@ dependencies = [
     "fastapi>=0.141.1",  # HTTP framework: routing, validation, auto-generated API docs
     "httpx>=0.28.1",     # HTTP client for the CLI (also used by FastAPI's test client)
     "uvicorn>=0.52.4",   # ASGI server that actually listens on the socket and runs the app
+    # --- Windows only: the `; sys_platform == 'win32'` marker makes Linux skip them ---
+    # SMTC (play/pause/skip, now-playing) through pywinrt; see docs/decisions/0002.
+    # pywinrt ships one package per WinRT namespace, so each namespace we touch is listed.
+    "winrt-runtime>=3.2.1 ; sys_platform == 'win32'",                         # core runtime all namespaces need
+    "winrt-windows-media-control>=3.2.1 ; sys_platform == 'win32'",           # the SMTC session manager
+    "winrt-windows-foundation>=3.2.1 ; sys_platform == 'win32'",              # async operation types it returns
+    "winrt-windows-foundation-collections>=3.2.1 ; sys_platform == 'win32'",  # the list of sessions
+    # Per-application volume through the Windows Core Audio API (SMTC has no volume control).
+    "pycaw>=20251023 ; sys_platform == 'win32'",
+    # Names the process behind each audio session; imported directly to handle a process exiting mid-lookup.
+    "psutil>=7.2.2 ; sys_platform == 'win32'",
 ]
 
 # Console scripts: `uv sync` installs these as commands inside .venv.

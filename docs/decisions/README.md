@@ -14,3 +14,4 @@ a decision is reversed, a new ADR supersedes the old one.
 | [0005](0005-async-media-controller-port.md) | The MediaController port is asynchronous | Accepted |
 | [0006](0006-http-api-shape.md) | HTTP API shape: RPC-style actions, REST-style state | Accepted |
 | [0007](0007-web-client-served-by-server.md) | Web client served by the server, plain JavaScript, polling | Accepted |
+| [0008](0008-absorbing-chrome-smtc-session-gaps.md) | Absorbing Chrome's SMTC session gap in the Windows adapter | Accepted |

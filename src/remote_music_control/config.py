@@ -14,9 +14,11 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-CONTROLLER_CHOICES = ("fake",)  # "windows" is added in Phase 4
+CONTROLLER_CHOICES = ("fake", "windows")
 
 DEFAULT_CONTROLLER = "fake"
+# Executable names whose media session and audio the Windows adapter controls.
+DEFAULT_PLAYER_APPS = ("chrome.exe", "firefox.exe")
 # Loopback only for now: nothing outside this PC can connect until Phase 5
 # adds the bearer token and chooses the LAN bind address deliberately.
 DEFAULT_HOST = "127.0.0.1"
@@ -29,6 +31,7 @@ class ServerSettings:
     controller: str
     host: str
     port: int
+    player_apps: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -55,10 +58,17 @@ def load_server_settings(environ: Mapping[str, str] = os.environ) -> ServerSetti
     if not 1 <= port <= 65535:
         raise ValueError(f"RMC_PORT={port} is outside the valid range 1–65535")
 
+    # Comma-separated list, e.g. RMC_PLAYER_APPS=chrome.exe,msedge.exe
+    raw_apps = environ.get("RMC_PLAYER_APPS", ",".join(DEFAULT_PLAYER_APPS))
+    player_apps = tuple(name.strip().lower() for name in raw_apps.split(",") if name.strip())
+    if not player_apps:
+        raise ValueError("RMC_PLAYER_APPS must name at least one application, e.g. chrome.exe")
+
     return ServerSettings(
         controller=controller,
         host=environ.get("RMC_HOST", DEFAULT_HOST),
         port=port,
+        player_apps=player_apps,
     )
 
 

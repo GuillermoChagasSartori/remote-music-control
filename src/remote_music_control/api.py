@@ -28,6 +28,7 @@ from .media_controller import (
     MAX_VOLUME,
     MIN_VOLUME,
     MediaController,
+    MediaControllerError,
     NoMediaSessionError,
     NowPlaying,
     change_volume,
@@ -92,6 +93,14 @@ def create_app(controller: MediaController) -> FastAPI:
         # the player (nothing open) doesn't allow it. One handler here means no
         # endpoint needs its own try/except for this case.
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(error)})
+
+    @app.exception_handler(MediaControllerError)
+    async def media_controller_failed(request: Request, error: MediaControllerError) -> JSONResponse:
+        # Any other adapter failure (e.g. the player refused a command).
+        # 502 Bad Gateway: we are a gateway to the player, and the player failed.
+        # FastAPI picks the most specific handler, so NoMediaSessionError still
+        # gets the 409 above.
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(error)})
 
     @app.get("/health")
     async def health() -> dict[str, str]:

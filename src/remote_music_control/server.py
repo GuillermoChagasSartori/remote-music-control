@@ -11,27 +11,31 @@ import sys
 import uvicorn
 
 from .api import create_app
-from .config import load_server_settings
+from .config import ServerSettings, load_server_settings
 from .media_controller import MediaController
 
 
-def build_controller(name: str) -> MediaController:
+def build_controller(settings: ServerSettings) -> MediaController:
     """Return the adapter selected by configuration (a simple *factory function*)."""
-    if name == "fake":
-        # Imported here rather than at the top so each adapter's dependencies
-        # load only when that adapter is chosen. This matters in Phase 4: the
-        # Windows adapter imports packages that don't exist on Linux.
+    # Adapters are imported inside their branch rather than at the top, so each
+    # adapter's dependencies load only when that adapter is chosen. The Windows
+    # adapter imports packages that don't exist on Linux.
+    if settings.controller == "fake":
         from .adapters.fake import FakeMediaController
 
         return FakeMediaController()
-    raise ValueError(f"unknown controller {name!r}")
+    if settings.controller == "windows":
+        from .adapters.windows import WindowsMediaController
+
+        return WindowsMediaController(player_apps=settings.player_apps)
+    raise ValueError(f"unknown controller {settings.controller!r}")
 
 
 def main() -> None:
     try:
         settings = load_server_settings()
-        controller = build_controller(settings.controller)
-    except ValueError as error:
+        controller = build_controller(settings)
+    except (ValueError, ImportError) as error:
         # A config mistake gets a one-line message, not a Python traceback.
         sys.exit(f"music-server: configuration error: {error}")
 

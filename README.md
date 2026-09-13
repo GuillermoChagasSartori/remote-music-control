@@ -4,9 +4,10 @@ Control YouTube Music playing in a browser on a Windows PC — play/pause, skip,
 volume, now-playing — from a web page or a CLI on any other machine on the same
 home network.
 
-> **Status:** early development (Phase 3). Play/pause, skip, volume and
-> now-playing work from the web page and the CLI, against an in-memory fake
-> player. The real Windows adapter comes in Phase 4.
+> **Status:** early development (Phase 4). Play/pause, skip, volume and
+> now-playing work from the web page and the CLI against YouTube Music in
+> Chrome on Windows. The server still listens on localhost only; LAN access
+> with a token comes in Phase 5.
 
 <p align="center">
   <img src="docs/images/web-ui.png" alt="Web UI showing the current track, playback buttons and volume controls" width="320">
@@ -18,7 +19,7 @@ The speakers are on the studio PC (Windows 10). The work happens on another PC
 (Ubuntu) with only Bluetooth headphones. This project removes the walk between
 the two.
 
-## Architecture (planned)
+## Architecture
 
 ```
  Ubuntu PC / phone                         Windows PC
@@ -103,7 +104,8 @@ music health           check the server is reachable
 | `PUT /api/mute` | `{"muted": true}` | same as above |
 
 Commands answer `409 Conflict` when there is no media session (e.g. the browser
-is closed) and `422` for invalid input. Design rationale:
+is closed), `502 Bad Gateway` when the player rejects a command, and `422` for
+invalid input. `next`/`previous` reply once the new track is visible (up to ~2 s). Design rationale:
 [ADR 0006](docs/decisions/0006-http-api-shape.md).
 
 ## Configuration
@@ -117,9 +119,30 @@ All settings are environment variables with defaults
 | `RMC_CONTROLLER` | server | `fake` | Which media adapter to load |
 | `RMC_HOST` | server | `127.0.0.1` | Address to listen on |
 | `RMC_PORT` | server | `8000` | Port to listen on |
+| `RMC_PLAYER_APPS` | server | `chrome.exe,firefox.exe` | Windows adapter: executables whose media session and volume are controlled |
 | `RMC_SERVER_URL` | CLI | `http://127.0.0.1:8000` | Where the CLI sends requests (`--url` overrides) |
 
-Install steps for the Windows server will be added as the phases land.
+## Running the server on Windows
+
+1. Install [Git](https://git-scm.com/download/win) and
+   [uv](https://docs.astral.sh/uv/getting-started/installation/), then clone the
+   repository and run `uv sync` (Windows-only packages install automatically).
+2. Open YouTube Music in Chrome.
+3. From a terminal **in the desktop session** (not over SSH):
+
+   ```powershell
+   $env:RMC_CONTROLLER = "windows"
+   uv run music-server
+   ```
+
+The server must run in the logged-in user's desktop session: Windows only
+exposes media sessions and per-app audio there. A process started over SSH or
+as a Windows service gets "access denied"
+([ADR 0003](docs/decisions/0003-logon-task-instead-of-windows-service.md)).
+Automatic start at logon comes in Phase 7.
+
+How the adapter copes with Chrome briefly dropping its media session on every
+track change: [ADR 0008](docs/decisions/0008-absorbing-chrome-smtc-session-gaps.md).
 
 ## License
 
