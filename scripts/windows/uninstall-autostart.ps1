@@ -37,4 +37,8 @@ Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" 
     }
 
 Write-Host "Kept: the config file and log in $env:APPDATA\remote-music-control, and the firewall rule."
-Write-Host "To remove the firewall rule (as administrator): Remove-NetFirewallRule -DisplayName 'Remote Music Control (TCP 8000, LAN only)'"
+# The rule's name includes the port chosen at install time, so look it up
+# by its prefix rather than assuming port 8000.
+Get-NetFirewallRule -DisplayName "Remote Music Control (TCP *" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "To remove the firewall rule (as administrator): Remove-NetFirewallRule -DisplayName '$($_.DisplayName)'"
+}
