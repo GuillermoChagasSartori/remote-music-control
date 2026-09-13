@@ -5,6 +5,7 @@ so each command goes through real argument parsing, real HTTP requests to the
 real app, and real output formatting — just without a network.
 """
 
+import io
 import socket
 
 import httpx2
@@ -141,3 +142,21 @@ def test_broken_config_file_is_reported(isolated_environment, capsys):
     isolated_environment.write_text("not a key value line\n")
     assert cli.main(["now"]) == 1
     assert "configuration error" in capsys.readouterr().err
+
+
+def test_output_is_utf8_even_when_redirected_to_a_legacy_encoding(run, with_token, monkeypatch):
+    # Imitates Windows redirecting output to a file or pipe: a cp1252 text
+    # stream, which can't encode "▶" or "—" and used to crash the CLI.
+    redirected = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    monkeypatch.setattr("sys.stdout", redirected)
+
+    exit_code = cli.main(["now"])
+
+    redirected.flush()
+    assert exit_code == 0
+    assert redirected.buffer.getvalue().decode("utf-8").startswith("⏸ Signal Path — The Test Patterns")
+
+
+def test_timeouts_allow_slow_commands_but_detect_unreachable_servers_quickly():
+    assert cli.REQUEST_TIMEOUT.connect == 3.0
+    assert cli.REQUEST_TIMEOUT.read >= 5.0  # slowest real command measured at ~4.5 s

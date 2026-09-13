@@ -14,9 +14,12 @@ import httpx2
 from .config import ConfigError, default_config_path, load_client_settings
 from .media_controller import MAX_VOLUME, MIN_VOLUME
 
-# Generous enough for a slow Wi-Fi hop, short enough that a dead server is
-# reported quickly instead of the terminal appearing to hang.
-REQUEST_TIMEOUT_SECONDS = 3.0
+# Two limits, because the two waits are different:
+# - connecting: a PC that is off or unreachable should be reported quickly;
+# - reading the answer: on the real player, commands wait until their effect is
+#   visible (docs/decisions/0008) — measured up to ~2.3 s, and up to ~4.5 s if
+#   pressed during Chrome's track-change gap. 10 s leaves a wide margin.
+REQUEST_TIMEOUT = httpx2.Timeout(10.0, connect=3.0)
 
 # (command name, API path, help text) for the actions that take no arguments.
 TRANSPORT_COMMANDS = (
@@ -171,7 +174,7 @@ def make_client(url: str, token: str | None) -> httpx2.Client:
     # command-line option: arguments are visible to other users in process
     # listings (`ps`) and are saved in shell history.
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    return httpx2.Client(base_url=url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS)
+    return httpx2.Client(base_url=url, headers=headers, timeout=REQUEST_TIMEOUT)
 
 
 def server_error_message(response: httpx2.Response) -> str:
@@ -185,11 +188,27 @@ def server_error_message(response: httpx2.Response) -> str:
     return f"server returned HTTP {response.status_code}"
 
 
+def use_utf8_output() -> None:
+    """Write output as UTF-8, whatever the terminal or redirection.
+
+    The CLI prints characters like "▶" and "—". On Windows, when output is
+    redirected (`music now > file.txt`, or a pipe), Python otherwise uses the
+    legacy cp1252 encoding, which can't represent them, and crashes. Python
+    3.15 makes UTF-8 the default everywhere (PEP 686); this does it now.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        # reconfigure() exists on normal text streams; replacement streams
+        # (e.g. in some test tools) may not have it, and are left alone.
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI and return a process exit code (0 = success, 1 = failure).
 
     `argv` defaults to the real command-line arguments; tests can pass a list.
     """
+    use_utf8_output()
     try:
         settings = load_client_settings()
     except ConfigError as error:
