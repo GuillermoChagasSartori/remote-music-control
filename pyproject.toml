@@ -10,8 +10,9 @@ requires-python = ">=3.12"
 # Each dependency is added in the phase that needs it, with a one-line reason.
 dependencies = [
     "fastapi>=0.141.1",  # HTTP framework: routing, validation, auto-generated API docs
-    "httpx>=0.28.1",     # HTTP client for the CLI (also used by FastAPI's test client)
+    "httpx2>=2.12.0",    # HTTP client for the CLI; same library as FastAPI's test client (docs/decisions/0010)
     "uvicorn>=0.52.4",   # ASGI server that actually listens on the socket and runs the app
+
     # --- Windows only: the `; sys_platform == 'win32'` marker makes Linux skip them ---
     # SMTC (play/pause/skip, now-playing) through pywinrt; see docs/decisions/0002.
     # pywinrt ships one package per WinRT namespace, so each namespace we touch is listed.
@@ -35,3 +36,33 @@ music-server = "remote_music_control.server:main"
 # installable package with zero configuration, which is all we need.
 requires = ["uv_build>=0.12.1,<0.13"]
 build-backend = "uv_build"
+
+# Development-only tools: installed by `uv sync`, not needed to run the app.
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",      # test runner: plain `assert`, fixtures, clear failure output
+    "pytest-cov>=7.1.0",  # coverage report: which lines the tests never execute
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `--cov` measures coverage of our package; `term-missing` lists untested lines.
+addopts = "--cov=remote_music_control --cov-report=term-missing"
+# Turn warnings into test failures, so deprecations are noticed when they
+# appear instead of piling up unread.
+filterwarnings = [
+    "error",
+    # Third-party, not our code: starlette's test client still uses an anyio
+    # name that anyio deprecated. Ignored by exact message so any *other*
+    # warning still fails. Remove once starlette is updated.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
+
+[tool.coverage.run]
+# The Windows adapter can't run on Linux CI (see docs/testing-on-windows.md);
+# excluding it keeps the coverage number about code the tests can reach.
+omit = ["*/adapters/windows.py"]
+
+[tool.coverage.report]
+# Script entry points only run when a file is executed directly.
+exclude_also = ['if __name__ == "__main__":']

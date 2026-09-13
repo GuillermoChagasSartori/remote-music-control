@@ -9,7 +9,7 @@ import argparse
 import sys
 from typing import Any
 
-import httpx
+import httpx2
 
 from .config import ConfigError, default_config_path, load_client_settings
 from .media_controller import MAX_VOLUME, MIN_VOLUME
@@ -54,24 +54,24 @@ def format_volume(volume: dict[str, Any]) -> str:
 # --- Command handlers: each receives the HTTP client and the parsed arguments ---
 
 
-def run_health(client: httpx.Client, args: argparse.Namespace) -> None:
+def run_health(client: httpx2.Client, args: argparse.Namespace) -> None:
     request(client, "GET", "/health")  # public: is the server up at all?
     print(f"server ok at {args.url}")
     request(client, "GET", "/api/state")  # requires the token: is ours accepted?
     print("token accepted")
 
 
-def run_now(client: httpx.Client, args: argparse.Namespace) -> None:
+def run_now(client: httpx2.Client, args: argparse.Namespace) -> None:
     print(format_state(request(client, "GET", "/api/state")))
 
 
-def run_transport(client: httpx.Client, args: argparse.Namespace) -> None:
+def run_transport(client: httpx2.Client, args: argparse.Namespace) -> None:
     request(client, "POST", args.path)
     # Show the result so `music next` tells you what is playing now.
     run_now(client, args)
 
 
-def run_volume(client: httpx.Client, args: argparse.Namespace) -> None:
+def run_volume(client: httpx2.Client, args: argparse.Namespace) -> None:
     if args.level is None:
         data = request(client, "GET", "/api/volume")
     else:
@@ -79,21 +79,21 @@ def run_volume(client: httpx.Client, args: argparse.Namespace) -> None:
     print(format_volume(data))
 
 
-def run_volume_step(client: httpx.Client, args: argparse.Namespace) -> None:
+def run_volume_step(client: httpx2.Client, args: argparse.Namespace) -> None:
     # Only send ?step= when the user gave one, so the server's default applies.
     params = {} if args.step is None else {"step": args.step}
     print(format_volume(request(client, "POST", args.path, params=params)))
 
 
-def run_mute(client: httpx.Client, args: argparse.Namespace) -> None:
+def run_mute(client: httpx2.Client, args: argparse.Namespace) -> None:
     print(format_volume(request(client, "PUT", "/api/mute", json={"muted": args.muted})))
 
 
-def request(client: httpx.Client, method: str, path: str, **kwargs: Any) -> Any:
+def request(client: httpx2.Client, method: str, path: str, **kwargs: Any) -> Any:
     """Send one request; return the JSON body (or None for 204 No Content)."""
     response = client.request(method, path, **kwargs)
     response.raise_for_status()
-    if response.status_code == httpx.codes.NO_CONTENT:
+    if response.status_code == httpx2.codes.NO_CONTENT:
         return None
     return response.json()
 
@@ -160,7 +160,21 @@ def build_parser(default_url: str) -> argparse.ArgumentParser:
     return parser
 
 
-def server_error_message(response: httpx.Response) -> str:
+def make_client(url: str, token: str | None) -> httpx2.Client:
+    """Create the HTTP client every command uses.
+
+    A separate function so tests can replace it with FastAPI's TestClient,
+    which runs the real app in-process: the CLI is then tested end to end
+    without starting a server or opening a network port.
+    """
+    # The token comes only from the config file or environment, never from a
+    # command-line option: arguments are visible to other users in process
+    # listings (`ps`) and are saved in shell history.
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return httpx2.Client(base_url=url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS)
+
+
+def server_error_message(response: httpx2.Response) -> str:
     """Prefer the server's own explanation ("detail") over a bare status code."""
     try:
         detail = response.json().get("detail")
@@ -183,23 +197,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     args = build_parser(settings.server_url).parse_args(argv)
 
-    # The token comes only from the config file or environment, never from a
-    # command-line option: arguments are visible to other users in process
-    # listings (`ps`) and are saved in shell history.
-    headers = {"Authorization": f"Bearer {settings.token}"} if settings.token else {}
-
     try:
-        with httpx.Client(base_url=args.url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as client:
+        with make_client(args.url, settings.token) as client:
             args.handler(client, args)
     # Order matters: specific errors first, the general HTTPError last.
-    except httpx.ConnectError:
+    except httpx2.ConnectError:
         print(f"music: cannot connect to server at {args.url} — is it running?", file=sys.stderr)
         return 1
-    except httpx.TimeoutException:
+    except httpx2.TimeoutException:
         print(f"music: server at {args.url} did not answer in time", file=sys.stderr)
         return 1
-    except httpx.HTTPStatusError as error:
-        if error.response.status_code == httpx.codes.UNAUTHORIZED:
+    except httpx2.HTTPStatusError as error:
+        if error.response.status_code == httpx2.codes.UNAUTHORIZED:
             where = "is not set" if settings.token is None else "was rejected by the server"
             print(
                 f"music: the token {where}. Set RMC_TOKEN in {default_config_path()} "
@@ -209,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"music: {server_error_message(error.response)}", file=sys.stderr)
         return 1
-    except httpx.HTTPError as error:
+    except httpx2.HTTPError as error:
         print(f"music: request failed: {error}", file=sys.stderr)
         return 1
     return 0

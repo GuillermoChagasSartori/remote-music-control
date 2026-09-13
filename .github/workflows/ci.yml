@@ -1,0 +1,50 @@
+# Continuous integration: run the test suite on every push and pull request.
+#
+# GitHub Actions reads workflow files from .github/workflows/. Each *job* runs
+# on a fresh virtual machine (a *runner*); a *matrix* runs the same job once per
+# listed operating system.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Least privilege: the workflow only needs to read the code.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Let both operating systems finish even if one fails, so a Windows-only
+      # problem doesn't hide the Linux result (or the other way round).
+      fail-fast: false
+      matrix:
+        # ubuntu: the whole suite against the fake adapter.
+        # windows: the same suite, plus smoke tests that the Windows-only
+        #          packages install and the real adapter imports.
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          # Pinned so CI doesn't change behaviour when uv releases a new version.
+          version: "0.12.13"
+          # Cache downloaded packages between runs to make CI faster.
+          enable-cache: true
+
+      # uv reads .python-version and installs that Python by itself.
+      # --locked fails the build if uv.lock doesn't match pyproject.toml,
+      # catching a dependency change that was committed without its lockfile.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest

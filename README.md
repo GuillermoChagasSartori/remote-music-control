@@ -1,12 +1,15 @@
 # Remote Music Control
 
+[![CI](https://github.com/GuillermoChagasSartori/remote-music-control/actions/workflows/ci.yml/badge.svg)](https://github.com/GuillermoChagasSartori/remote-music-control/actions/workflows/ci.yml)
+
 Control YouTube Music playing in a browser on a Windows PC — play/pause, skip,
 volume, now-playing — from a web page or a CLI on any other device on the same
 home network.
 
-> **Status:** early development (Phase 5). Works end to end over the LAN with
-> token authentication, against YouTube Music in Chrome or Firefox on Windows.
-> Automated tests and CI (Phase 6) and start-at-logon packaging (Phase 7) are next.
+> **Status:** early development (Phase 6). Works end to end over the LAN with
+> token authentication, against YouTube Music in Chrome or Firefox on Windows,
+> with automated tests on Linux and Windows. Start-at-logon packaging (Phase 7)
+> is next.
 
 <p align="center">
   <img src="docs/images/web-ui.png" alt="Web UI showing the current track, playback buttons and volume controls" width="320">
@@ -49,7 +52,13 @@ src/remote_music_control/   application package
   server.py                 `music-server`: wiring, logging, `init`
   cli.py                    `music` command-line client
   web/                      the web page: index.html, style.css, app.js
+tests/
+  unit/                     one module at a time (fake player, config, CLI parsing, server)
+  integration/              the real app over HTTP, and the CLI against it, using the fake
+  windows/                  smoke tests for the Windows adapter (run only on Windows)
+.github/workflows/ci.yml    GitHub Actions: tests on Ubuntu and Windows
 docs/decisions/             Architecture Decision Records (ADRs)
+docs/testing-on-windows.md  manual checklist for the real Windows adapter
 docs/walkthrough/           block-by-block explanation of the code
 ```
 
@@ -140,6 +149,27 @@ uv run music now           # in a second terminal
 
 Interactive API docs are at <http://127.0.0.1:8000/docs> (use **Authorize**
 with the token).
+
+## Tests
+
+```bash
+uv run pytest                # all tests, with a coverage report
+uv run pytest tests/unit     # only the unit tests
+uv run pytest -k volume      # only tests whose name contains "volume"
+```
+
+- **Unit tests** check one module in isolation: the fake player, config
+  parsing, CLI argument parsing and output, server startup.
+- **Integration tests** run the real FastAPI app in-process against the fake
+  player — authentication, every endpoint, validation, error responses,
+  security headers, logging — and the `music` CLI against that app.
+- **Windows smoke tests** check that the real adapter's packages install and
+  import; they are skipped on other systems.
+- Warnings fail the tests, so deprecations are noticed when they appear.
+
+CI runs the suite on Ubuntu and Windows for every push. The real adapter's
+behaviour needs a desktop session with a browser, so it is checked by hand:
+[docs/testing-on-windows.md](docs/testing-on-windows.md).
 
 ## Usage
 
