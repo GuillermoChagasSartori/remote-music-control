@@ -14,7 +14,7 @@ Pages are added on request, in an order where each one builds on the previous.
 | 03 | [The HTTP API](03-http-api.md) | `api.py` | Written |
 | 04 | [Configuration](04-configuration.md) | `config.py` | Written |
 | 05 | [The CLI](05-cli.md) | `cli.py` | Written |
-| 06 | The composition root | `server.py` | Planned |
+| 06 | [The composition root](06-server.md) | `server.py` | Written |
 | 07 | The Windows adapter | `adapters/windows.py` | Planned |
 | 08 | The web page | `web/` | Planned |
 | 09 | The tests | `tests/` | Planned |

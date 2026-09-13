@@ -34,7 +34,7 @@ fake adapters connect the port to a *media player*; `api.py` connects it to the
 ```
 
 The rule from page 01 holds: `api.py` imports the **port**, never an adapter.
-Which adapter it gets is decided in `server.py` ([page 06](README.md)).
+Which adapter it gets is decided in `server.py` ([page 06](06-server.md)).
 
 ## A request's journey
 

@@ -441,6 +441,7 @@ pass on the fake and fail on real hardware. This risk has a name: the fake
 | "Previous" late in a song | Always previous track | Restarts the same song | Windows adapter handles it with a timeout |
 | Album | Always a string | Often `""`, converted to `None` | Page and CLI handle both |
 | Volume | One number | Every audio session of the browser | Hidden by the Windows adapter |
+| Volume while paused for minutes | Always readable | Chrome releases its audio session after ~3 min | Windows adapter remembers the last volume (ADR 0008 addendum) |
 
 The pattern in that table is the design working as intended: **every quirk of
 the real player is absorbed inside the Windows adapter**, so the fake only has
