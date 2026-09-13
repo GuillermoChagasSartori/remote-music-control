@@ -19,3 +19,4 @@ a decision is reversed, a new ADR supersedes the old one.
 | [0010](0010-httpx2-for-the-cli-and-tests.md) | httpx2 instead of httpx for the CLI and tests | Accepted |
 | [0011](0011-logon-task-with-watchdog-trigger.md) | Logon task with a clock-based watchdog trigger | Accepted |
 | [0012](0012-pairing-page-on-the-server-pc.md) | Pairing page served only to the server PC | Accepted |
+| [0013](0013-chrome-extension-for-search-and-queue.md) | A Chrome extension for search and the queue | Accepted |
