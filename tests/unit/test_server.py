@@ -65,8 +65,6 @@ def test_run_wires_settings_into_the_app_and_uvicorn(monkeypatch):
     # function that records what it was given.
     calls = {}
     monkeypatch.setattr(server.uvicorn, "run", lambda app, **options: calls.update(app=app, **options))
-    # Logging setup changes process-wide state (root logger, stderr), so skip it here.
-    monkeypatch.setattr(server, "configure_logging", lambda level: None)
 
     server.run(settings("fake"))
 
