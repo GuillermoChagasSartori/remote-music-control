@@ -167,6 +167,19 @@ def test_config_path_on_linux_follows_xdg_config_home(monkeypatch, tmp_path):
     assert path == tmp_path / "remote-music-control" / "config.env"
 
 
+@pytest.mark.parametrize("variable", ["RMC_CONFIG_FILE", "XDG_CONFIG_HOME"])
+def test_empty_path_variables_count_as_unset(monkeypatch, variable):
+    monkeypatch.setattr(config.sys, "platform", "linux")
+    path = default_config_path({variable: "  "})
+    assert path == Path.home() / ".config" / "remote-music-control" / "config.env"
+
+
+def test_empty_appdata_falls_back_to_the_usual_windows_folder(monkeypatch):
+    monkeypatch.setattr(config.sys, "platform", "win32")
+    path = default_config_path({"APPDATA": ""})
+    assert path == Path.home() / "AppData" / "Roaming" / "remote-music-control" / "config.env"
+
+
 def test_config_path_on_windows_is_under_appdata(monkeypatch, tmp_path):
     monkeypatch.setattr(config.sys, "platform", "win32")
     path = default_config_path({"APPDATA": str(tmp_path)})

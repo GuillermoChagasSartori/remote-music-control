@@ -70,13 +70,15 @@ class ClientSettings:
 
 
 def default_config_path(environ: Mapping[str, str] = os.environ) -> Path:
-    if "RMC_CONFIG_FILE" in environ:
-        return Path(environ["RMC_CONFIG_FILE"])
+    # Empty variables count as unset here too (as in load_values): Path("") would
+    # mean "the current folder". The XDG spec says the same for XDG_CONFIG_HOME.
+    if environ.get("RMC_CONFIG_FILE", "").strip():
+        return Path(environ["RMC_CONFIG_FILE"].strip())
     if sys.platform == "win32":
-        base = Path(environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        base = environ.get("APPDATA", "").strip() or Path.home() / "AppData" / "Roaming"
     else:
-        base = Path(environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    return base / "remote-music-control" / "config.env"
+        base = environ.get("XDG_CONFIG_HOME", "").strip() or Path.home() / ".config"
+    return Path(base) / "remote-music-control" / "config.env"
 
 
 def default_log_path(environ: Mapping[str, str] = os.environ) -> Path:
@@ -124,7 +126,8 @@ def create_config_file(path: Path, lines: list[str]) -> None:
 
     O_EXCL makes creation fail if the file already exists, so an existing token
     is never overwritten. On Linux, mode 0o600 means owner read/write only. On
-    Windows, files under %APPDATA% are already private to the user.
+    Windows the mode is ignored; files under %APPDATA% are readable only by the
+    user, administrators and the SYSTEM account, by default.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
