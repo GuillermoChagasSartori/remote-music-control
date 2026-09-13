@@ -42,11 +42,14 @@ from before the command.
 | 16 | Double-click the desktop shortcut "pair a device" | Pairing page with two QR codes, this PC's MAC and IP |
 | 17 | Scan the "Any phone" code with a phone on the Wi-Fi | Player opens on the phone, buttons work |
 | 18 | Open `http://<PC IP>:8000/pair` from another device | "Only available on the server PC" (403), no QR codes |
+| 19 | Pause, wait 4 minutes, then `music now` and `music vol 40` | `now` shows the paused track and last volume; `vol 40` says to press play first |
+| 20 | Follow the log with `Get-Content ... -Wait` while using the remote | Commands keep appearing; no errors in the log |
 
 ## Results log
 
 | Date | Chrome | Firefox | Result | Notes |
 |---|---|---|---|---|
 | 2026-09-13 | ✓ | ✓ | Pass (1–13) | Found and fixed stale state after play/pause (ADR 0008); Firefox reports "paused" briefly during skips |
+| 2026-09-13 | ✓ | — | Pass (19–20) | Found and fixed: state failed after 3 min paused (ADR 0008 addendum); log rotation lost 286/400 lines and 2 backups while the log was followed (lock-tolerant handler). Both verified after the fix |
 | 2026-09-13 | ✓ | — | Pass (16–18) | Pairing page: desktop shortcut opens it, phone scan of "Any phone" code opens the player, other devices get 403 |
 | 2026-09-13 | ✓ | — | Pass (14–15) | Watchdog restarted a killed server in 44 s; no duplicate instances. After sign-out/sign-in the task started the server in the new session within seconds, no console window; Chrome opened afterwards was found without a restart |

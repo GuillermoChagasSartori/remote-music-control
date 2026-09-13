@@ -57,3 +57,29 @@ above it unaware of the quirk:
   session across skips — no gap — but briefly reports "paused" while changing
   tracks. The same code handles it: `next` answers in ~0.4 s. `previous` took
   ~2 s to show the new track, so its reply usually hits the timeout.
+
+## Addendum — 2026-09-13: audio session released while paused
+
+A second, slower gap was found later. **About 3 minutes (measured 193–194 s)
+after pausing, Chrome releases its audio session**, while its media session —
+the paused track — remains. Volume can't be read or changed without an audio
+session, so `GET /api/state` answered 409 and the web page and `music now`
+stopped showing the paused track.
+
+Measured as well: **when playback resumes, Windows restores the application's
+previous volume and mute state.**
+
+Decision, again inside the Windows adapter:
+
+- `get_volume()` / `is_muted()` remember the last values read or written. With
+  no audio session but a media session present (i.e. paused), they return
+  those remembered values.
+- `set_volume()` / `set_muted()` can't work without an audio session; they
+  raise `NoMediaSessionError` (409) with an actionable message: *press play,
+  then change the volume*.
+- If the server started while the player was already paused, no value is known
+  yet, and volume reads answer 409 until playback resumes. Accepted as rare.
+
+Verified live: paused for over 3 minutes, state still showed the track with
+volume 30; setting the volume gave the new message; after play, volume was 30.
+
