@@ -16,6 +16,6 @@ Pages are added on request, in an order where each one builds on the previous.
 | 05 | [The CLI](05-cli.md) | `cli.py` | Written |
 | 06 | [The composition root](06-server.md) | `server.py` | Written |
 | 07 | [The Windows adapter](07-windows-adapter.md) | `adapters/windows.py` | Written |
-| 08 | The web page | `web/` | Planned |
+| 08 | [The web pages](08-web-pages.md) | `web/`, `pairing.py` | Written |
 | 09 | The tests | `tests/` | Planned |
 | 10 | Start at logon | `scripts/windows/` | Planned |
