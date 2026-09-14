@@ -6,8 +6,8 @@
 
 The app (ADR 0014) must reach customers as one download from a website:
 download, install, done. They don't have Python, uv or git, and must not need
-them. The distribution has no budget, so every tool must be free, including for
-commercial use. Code signing is left for later.
+them. The distribution has no budget, so every tool must be free. Code signing is
+left for later.
 
 ## Decision
 
@@ -22,8 +22,14 @@ commercial use. Code signing is left for later.
   - **No UPX compression**, for the same reason; and **version details** in the
     .exe (publisher, product, version), which Windows shows in Properties.
 - **Inno Setup 7** turns the folder into `RemoteMusicControl-Setup-<version>.exe`.
-  Free for any use, including commercial; long established; English and
-  Brazilian Portuguese wizard texts included. The installer:
+  Long established, with English and Brazilian Portuguese wizard texts
+  included. Its licence permits any use, but its authors *ask* commercial users
+  (organizations or individuals earning over USD 5,000 a year from the work)
+  to buy a licence — requested, "not strictly required", and the compiler
+  prints "Non-commercial use only" without one. This project is free,
+  open-source and earns nothing, so it isn't a commercial user; if that
+  changes, buy a licence or switch to NSIS or WiX (both free for commercial
+  use). The installer:
   - installs to **Program Files for all users** and so asks for administrator
     rights once (owner's choice), which also lets it create the firewall rule;
   - adds a **Start menu** entry, an optional desktop shortcut, and an
@@ -73,3 +79,6 @@ uninstall entry removed; user data kept. Reinstall: working at once.
 - Updates are manual — download and run the new installer — until an update
   check is added.
 - Building needs Windows (PyInstaller doesn't cross-compile); CI provides it.
+- `build.ps1` uses only Inno Setup 7 and checks its version: GitHub's Windows
+  runners ship Inno Setup 6 on the PATH, which picked up the script in the first
+  CI run and failed on the 7-only `SetupArchitecture` directive.

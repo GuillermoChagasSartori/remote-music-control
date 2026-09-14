@@ -44,13 +44,20 @@ if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notl
 }
 
 Write-Host '== 4/4 Installer (Inno Setup)'
+# Only Inno Setup 7's own folders, never whatever ISCC.exe is first on PATH:
+# GitHub's Windows runners come with Inno Setup 6, which can't read this
+# script (it rejects the SetupArchitecture directive).
 $iscc = @(
-    (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source,
+    "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe",
     "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
-    "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
-    "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe"
-) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
-if (-not $iscc) { throw 'ISCC.exe (Inno Setup 7) not found' }
+    "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $iscc) { throw 'ISCC.exe (Inno Setup 7) not found; run packaging\install-inno-setup.ps1' }
+# ISCC.exe carries no version number in its file details (it reads 0.0.0.0),
+# but its banner names the edition: "Inno Setup 7 Command-Line Compiler".
+$banner = (& $iscc '/?' 2>&1 | Select-Object -First 1 | Out-String).Trim()
+if ($banner -notlike 'Inno Setup 7 *') { throw "expected Inno Setup 7 at $iscc, it says: $banner" }
+Write-Host $banner
 Invoke-Checked $iscc @("/DAppVersion=$version", 'packaging\installer.iss')
 
 Get-Item "dist\RemoteMusicControl-Setup-$version.exe" | ForEach-Object {
