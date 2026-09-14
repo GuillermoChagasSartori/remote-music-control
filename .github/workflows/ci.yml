@@ -104,4 +104,9 @@ jobs:
         # programs, so the file is looked up first.
         run: |
           $installer = (Get-Item dist\RemoteMusicControl-Setup-*.exe).FullName
-          gh release create "${{ github.ref_name }}" $installer --title "Remote Music Control ${{ github.ref_name }}" --generate-notes
+          # Also publish under a version-less name, so the website's download
+          # button can link straight to a file (releases/latest/download/...)
+          # that never needs updating when a new version ships.
+          $stableCopy = Join-Path (Split-Path $installer) 'RemoteMusicControl-Setup-latest.exe'
+          Copy-Item $installer $stableCopy
+          gh release create "${{ github.ref_name }}" $installer $stableCopy --title "Remote Music Control ${{ github.ref_name }}" --generate-notes
